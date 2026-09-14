@@ -1,0 +1,755 @@
+// ============================================================
+// BITLANCE GROUND OS — Complete Prisma Schema
+// All domain tables as specified in the architecture document
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// IDENTITY & RBAC
+// ─────────────────────────────────────────────────────────────
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  settings    Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users             User[]
+  agents            Agent[]
+  customers         Customer[]
+  leads             Lead[]
+  projects          Project[]
+  inventory         Inventory[]
+  visits            Visit[]
+  meetings          Meeting[]
+  conversations     Conversation[]
+  workflows         Workflow[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  creativeRequests  CreativeRequest[]
+
+  @@map("organizations")
+}
+
+enum UserRole {
+  CEO
+  CTO
+  SALES_MANAGER
+  AGENT
+  DEVELOPER
+  MARKETING
+  ADMIN
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String       @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  avatarUrl      String?
+  role           UserRole     @default(AGENT)
+  isActive       Boolean      @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  agent         Agent?
+  sessions      Session[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// ─────────────────────────────────────────────────────────────
+// AGENT OPERATIONS
+// ─────────────────────────────────────────────────────────────
+
+enum AgentStatus {
+  OFFLINE
+  ONLINE
+  EN_ROUTE
+  AT_LOCATION
+  IN_MEETING
+}
+
+model Agent {
+  id               String      @id @default(cuid())
+  organizationId   String
+  userId           String      @unique
+  employeeCode     String?
+  phone            String?
+  status           AgentStatus @default(OFFLINE)
+  currentLatitude  Float?
+  currentLongitude Float?
+  lastSeenAt       DateTime?
+  territory        String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+  visits       Visit[]
+  meetings     Meeting[]
+  locations    AgentLocation[]
+
+  @@map("agents")
+}
+
+model AgentLocation {
+  id        String   @id @default(cuid())
+  agentId   String
+  latitude  Float
+  longitude Float
+  accuracy  Float?
+  timestamp DateTime @default(now())
+
+  agent Agent @relation(fields: [agentId], references: [id])
+
+  @@index([agentId, timestamp])
+  @@map("agent_locations")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CUSTOMERS & LEADS
+// ─────────────────────────────────────────────────────────────
+
+enum CustomerType {
+  SHOP_OWNER
+  INDIVIDUAL
+  CORPORATE
+  DEVELOPER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  SITE_VISIT_SCHEDULED
+  NEGOTIATING
+  CONVERTED
+  LOST
+  DORMANT
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  organizationId String
+  firstName      String
+  lastName       String
+  phone          String
+  email          String?
+  type           CustomerType @default(SHOP_OWNER)
+  businessName   String?
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  whatsappOptIn  Boolean      @default(true)
+  voiceOptOut    Boolean      @default(false)
+  notes          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization      Organization    @relation(fields: [organizationId], references: [id])
+  leads             Lead[]
+  visits            Visit[]
+  meetings          Meeting[]
+  conversations     Conversation[]
+  requirements      Requirement[]
+  voiceCalls        VoiceCall[]
+  creativeRequests  CreativeRequest[]
+  followUps         FollowUp[]
+  timelineEvents    TimelineEvent[]
+
+  @@index([organizationId])
+  @@map("customers")
+}
+
+model Lead {
+  id                String     @id @default(cuid())
+  organizationId    String
+  customerId        String
+  status            LeadStatus @default(NEW)
+  score             Int        @default(0)
+  intentLevel       String     @default("LOW")  // LOW | MEDIUM | HIGH | VERY_HIGH
+  purchaseProbability Float    @default(0)
+  followUpRisk      Boolean    @default(false)
+  scoreExplanation  String?
+  lastScoreAt       DateTime?
+  convertedAt       DateTime?
+  lostReason        String?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  scoreHistory LeadScoreHistory[]
+
+  @@map("leads")
+}
+
+model LeadScoreHistory {
+  id        String   @id @default(cuid())
+  leadId    String
+  score     Int
+  reason    String
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@index([leadId])
+  @@map("lead_score_history")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PROJECTS & INVENTORY
+// ─────────────────────────────────────────────────────────────
+
+enum PropertyType {
+  RESIDENTIAL
+  COMMERCIAL
+  MIXED
+}
+
+model Project {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  type           PropertyType
+  location       String
+  latitude       Float?
+  longitude      Float?
+  reraNumber     String?
+  logoUrl        String?
+  brochureUrl    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  inventory    Inventory[]
+
+  @@map("projects")
+}
+
+model Inventory {
+  id             String   @id @default(cuid())
+  organizationId String
+  projectId      String
+  unitType       String   // 1BHK, 2BHK, 3BHK, Shop, etc.
+  configuration  String?
+  floorArea      Float?
+  priceMin       Float
+  priceMax       Float
+  availableUnits Int      @default(0)
+  amenities      Json     @default("[]")
+  isAvailable    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  project      Project      @relation(fields: [projectId], references: [id])
+
+  @@map("inventory")
+}
+
+// ─────────────────────────────────────────────────────────────
+// VISIT LIFECYCLE
+// ─────────────────────────────────────────────────────────────
+
+enum VisitStatus {
+  ASSIGNED
+  EN_ROUTE
+  ARRIVED
+  LOCATION_VERIFIED
+  MEETING_STARTED
+  MEETING_ENDED
+  AI_PROCESSING
+  REPORT_READY
+  COMPLETED
+  MISSED
+  CANCELLED
+}
+
+model Visit {
+  id               String      @id @default(cuid())
+  organizationId   String
+  agentId          String
+  customerId       String
+  status           VisitStatus @default(ASSIGNED)
+  scheduledAt      DateTime?
+  arrivedAt        DateTime?
+  verifiedAt       DateTime?
+  completedAt      DateTime?
+  destination      String?
+  destinationLat   Float?
+  destinationLng   Float?
+  arrivalLatitude  Float?
+  arrivalLongitude Float?
+  notes            String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  agent        Agent        @relation(fields: [agentId], references: [id])
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  meetings     Meeting[]
+  visitEvents  VisitEvent[]
+
+  @@index([organizationId, agentId])
+  @@map("visits")
+}
+
+model VisitEvent {
+  id        String   @id @default(cuid())
+  visitId   String
+  type      String   // ASSIGNED | DEPARTED | ARRIVED | VERIFIED | MEETING_STARTED | etc.
+  payload   Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  visit Visit @relation(fields: [visitId], references: [id])
+
+  @@index([visitId])
+  @@map("visit_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+// MEETING INTELLIGENCE
+// ─────────────────────────────────────────────────────────────
+
+enum MeetingStatus {
+  STARTED
+  RECORDING
+  ENDED
+  UPLOADING
+  PROCESSING
+  ANALYSED
+  FAILED
+}
+
+model Meeting {
+  id               String        @id @default(cuid())
+  organizationId   String
+  agentId          String
+  customerId       String
+  visitId          String?
+  status           MeetingStatus @default(STARTED)
+  startedAt        DateTime      @default(now())
+  endedAt          DateTime?
+  durationSeconds  Int?
+  qualityScore     Int?
+  notes            String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id])
+  agent        Agent         @relation(fields: [agentId], references: [id])
+  customer     Customer      @relation(fields: [customerId], references: [id])
+  visit        Visit?        @relation(fields: [visitId], references: [id])
+  recording    Recording?
+  transcript   Transcript?
+  insight      MeetingInsight?
+
+  @@map("meetings")
+}
+
+model Recording {
+  id          String   @id @default(cuid())
+  meetingId   String   @unique
+  storageKey  String
+  storageUrl  String?
+  duration    Int?
+  fileSize    Int?
+  mimeType    String   @default("audio/webm")
+  uploadedAt  DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+
+  @@map("recordings")
+}
+
+model Transcript {
+  id          String   @id @default(cuid())
+  meetingId   String   @unique
+  rawText     String
+  segments    Json     @default("[]") // [{speaker, start, end, text}]
+  language    String   @default("en")
+  confidence  Float?
+  processedAt DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+
+  @@map("transcripts")
+}
+
+model MeetingInsight {
+  id                    String   @id @default(cuid())
+  meetingId             String   @unique
+  summary               String
+  customerIntent        String
+  intentLevel           String
+  requirement           Json     @default("{}")
+  budget                Json     @default("{}")
+  locationPreference    String?
+  urgency               String?
+  isDecisionMaker       Boolean  @default(false)
+  objections            Json     @default("[]")
+  competitorMentions    Json     @default("[]")
+  sentiment             String?
+  qualityScore          Int?
+  qualityBreakdown      Json     @default("{}")
+  recommendedAction     String?
+  recommendedFollowupAt DateTime?
+  processedAt           DateTime @default(now())
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+
+  @@map("meeting_insights")
+}
+
+// ─────────────────────────────────────────────────────────────
+// REQUIREMENT ENGINE
+// ─────────────────────────────────────────────────────────────
+
+model Requirement {
+  id                   String   @id @default(cuid())
+  customerId           String
+  propertyType         String?
+  configuration        String?  // 1BHK | 2BHK | 3BHK | Shop
+  budgetMin            Float?
+  budgetMax            Float?
+  location             String?
+  purpose              String?  // self-use | investment | business
+  timeline             String?
+  amenities            Json     @default("[]")
+  parking              Boolean?
+  paymentPreference    String?
+  objections           Json     @default("[]")
+  competitorMentions   Json     @default("[]")
+  preferredChannel     String?
+  confidence           Float    @default(0)
+  source               String   @default("ai")
+  updatedAt            DateTime @updatedAt
+  createdAt            DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("requirements")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONVERSATIONS & WHATSAPP
+// ─────────────────────────────────────────────────────────────
+
+enum ConversationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+  VOICE
+}
+
+enum ConversationStatus {
+  ACTIVE
+  INACTIVE
+  RESOLVED
+  OPTED_OUT
+}
+
+model Conversation {
+  id              String              @id @default(cuid())
+  organizationId  String
+  customerId      String
+  channel         ConversationChannel @default(WHATSAPP)
+  status          ConversationStatus  @default(ACTIVE)
+  lastMessageAt   DateTime?
+  inactiveSince   DateTime?
+  metadata        Json                @default("{}")
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer     @relation(fields: [customerId], references: [id])
+  messages     Message[]
+
+  @@index([organizationId, customerId])
+  @@map("conversations")
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  direction      MessageDirection
+  status         MessageStatus    @default(PENDING)
+  content        String
+  mediaUrl       String?
+  mediaType      String?
+  externalId     String?          // WhatsApp message ID
+  aiGenerated    Boolean          @default(false)
+  intent         String?
+  sentiment      String?
+  createdAt      DateTime         @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@index([conversationId])
+  @@map("messages")
+}
+
+// ─────────────────────────────────────────────────────────────
+// VOICE AI
+// ─────────────────────────────────────────────────────────────
+
+enum VoiceCallStatus {
+  TRIGGERED
+  DIALING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  NO_ANSWER
+  OPTED_OUT
+  SKIPPED
+}
+
+model VoiceCall {
+  id               String          @id @default(cuid())
+  customerId       String
+  conversationId   String?
+  status           VoiceCallStatus @default(TRIGGERED)
+  triggerReason    String?
+  externalCallId   String?
+  duration         Int?
+  recordingUrl     String?
+  transcript       String?
+  intent           String?
+  sentiment        String?
+  requirementDelta Json?
+  objections       Json            @default("[]")
+  outcome          String?
+  nextAction       String?
+  followUpDate     DateTime?
+  startedAt        DateTime?
+  endedAt          DateTime?
+  createdAt        DateTime        @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("voice_calls")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CREATIVE AUTOMATION
+// ─────────────────────────────────────────────────────────────
+
+enum CreativeStatus {
+  REQUESTED
+  GENERATING
+  READY
+  APPROVED
+  REJECTED
+  DELIVERED
+}
+
+model CreativeRequest {
+  id             String         @id @default(cuid())
+  organizationId String
+  customerId     String?
+  type           String         // PROPERTY_POSTER | WHATSAPP_CREATIVE | PRICE_CARD | etc.
+  brief          Json
+  status         CreativeStatus @default(REQUESTED)
+  assetUrl       String?
+  deliveredAt    DateTime?
+  approvedBy     String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer     Customer?    @relation(fields: [customerId], references: [id])
+
+  @@map("creative_requests")
+}
+
+// ─────────────────────────────────────────────────────────────
+// WORKFLOW AUTOMATION
+// ─────────────────────────────────────────────────────────────
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model Workflow {
+  id             String         @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  trigger        Json           // {type, conditions}
+  nodes          Json           // [{id, type, config, next}]
+  status         WorkflowStatus @default(DRAFT)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization  Organization  @relation(fields: [organizationId], references: [id])
+  runs          WorkflowRun[]
+
+  @@map("workflows")
+}
+
+enum WorkflowRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  WAITING
+  CANCELLED
+}
+
+model WorkflowRun {
+  id          String            @id @default(cuid())
+  workflowId  String
+  entityType  String            // customer | lead | conversation
+  entityId    String
+  status      WorkflowRunStatus @default(RUNNING)
+  currentNode String?
+  state       Json              @default("{}")
+  error       String?
+  startedAt   DateTime          @default(now())
+  completedAt DateTime?
+
+  workflow Workflow @relation(fields: [workflowId], references: [id])
+
+  @@index([workflowId, status])
+  @@map("workflow_runs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// FOLLOW-UPS
+// ─────────────────────────────────────────────────────────────
+
+enum FollowUpStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  OVERDUE
+  CANCELLED
+}
+
+model FollowUp {
+  id           String         @id @default(cuid())
+  customerId   String
+  assignedTo   String?
+  type         String         // CALL | WHATSAPP | SITE_VISIT | CREATIVE_SEND | etc.
+  reason       String?
+  dueAt        DateTime
+  status       FollowUpStatus @default(PENDING)
+  completedAt  DateTime?
+  notes        String?
+  aiGenerated  Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("follow_ups")
+}
+
+// ─────────────────────────────────────────────────────────────
+// CUSTOMER 360 TIMELINE
+// ─────────────────────────────────────────────────────────────
+
+model TimelineEvent {
+  id           String   @id @default(cuid())
+  customerId   String
+  type         String   // WHATSAPP_ENQUIRY | AGENT_ARRIVED | MEETING_STARTED | AI_REPORT | etc.
+  title        String
+  description  String?
+  metadata     Json     @default("{}")
+  isAiEvent    Boolean  @default(false)
+  occurredAt   DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, occurredAt])
+  @@map("timeline_events")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTIFICATIONS & AUDIT
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  type           String
+  title          String
+  body           String
+  metadata       Json     @default("{}")
+  isRead         Boolean  @default(false)
+  channel        String   @default("IN_APP") // IN_APP | WHATSAPP | EMAIL
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, userId])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  entityType     String
+  entityId       String
+  before         Json?
+  after          Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId, entityType, entityId])
+  @@map("audit_logs")
+}

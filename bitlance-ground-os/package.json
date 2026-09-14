@@ -1,0 +1,36 @@
+{
+  "name": "bitlance-ground-os",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "npm@10.8.2",
+  "description": "Bitlance Ground OS — AI-Powered Field Sales & Developer Intelligence Platform",
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "dev:web": "turbo run dev --filter=@ground-os/web",
+    "dev:api": "turbo run dev --filter=@ground-os/api",
+    "dev:worker": "turbo run dev --filter=@ground-os/worker",
+    "build": "turbo run build",
+    "db:generate": "turbo run db:generate --filter=@ground-os/database",
+    "db:migrate": "turbo run db:migrate --filter=@ground-os/database",
+    "db:seed": "turbo run db:seed --filter=@ground-os/database",
+    "db:studio": "turbo run db:studio --filter=@ground-os/database",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.0",
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "prettier": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

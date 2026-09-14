@@ -1,0 +1,37 @@
+{
+  "name": "@ground-os/web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5173",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext ts,tsx"
+  },
+  "dependencies": {
+    "@ground-os/types": "*",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "react-router-dom": "^6.23.0",
+    "leaflet": "^1.9.4",
+    "react-leaflet": "^4.2.1",
+    "react-flow-renderer": "^10.3.17",
+    "date-fns": "^3.6.0",
+    "zustand": "^4.5.0",
+    "axios": "^1.7.0",
+    "react-hot-toast": "^2.4.1",
+    "lucide-react": "^0.400.0",
+    "framer-motion": "^11.2.0",
+    "recharts": "^2.12.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/leaflet": "^1.9.12",
+    "@vitejs/plugin-react": "^4.3.0",
+    "typescript": "^5.4.0",
+    "vite": "^5.3.0"
+  }
+}
