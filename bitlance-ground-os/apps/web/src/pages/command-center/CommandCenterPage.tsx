@@ -55,7 +55,7 @@ export default function CommandCenterPage() {
       </div>
 
       {/* Main content — Map + Feed */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '20px', flex: 1, minHeight: 0 }}>
+      <div className="dashboard-layout">
 
         {/* Live Agent Map — Hero Surface */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>

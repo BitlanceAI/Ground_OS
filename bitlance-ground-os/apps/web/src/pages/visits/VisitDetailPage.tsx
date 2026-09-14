@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Clock, CheckCircle2, Navigation2, ChevronRight } from 'lucide-react';
+import { MapPin, Clock, CheckCircle2, Navigation2, ChevronRight, ShieldCheck, Camera } from 'lucide-react';
 
 export default function VisitDetailPage() {
   const navigate = useNavigate();
@@ -8,6 +8,7 @@ export default function VisitDetailPage() {
     { type: 'ASSIGNED', time: '10:00', label: 'Visit Assigned', detail: 'Aman assigned to Rajesh Electronics', color: '#6366f1' },
     { type: 'DEPARTED', time: '10:20', label: 'Agent Departed', detail: 'Left from Andheri West base', color: '#818cf8' },
     { type: 'ARRIVED', time: '10:41', label: 'Arrived at Location', detail: '12m GPS accuracy · Shop 14, Andheri West', color: '#22d3ee' },
+    { type: 'CUSTOMER_VERIFIED', time: '10:42', label: 'Customer Verified', detail: 'OTP matched. Geo-tagged Selfie captured.', color: '#10b981' },
     { type: 'LOCATION_VERIFIED', time: '10:42', label: 'Location Verified', detail: 'GPS verified — within 50m of destination', color: '#10b981' },
     { type: 'MEETING_STARTED', time: '10:43', label: 'Meeting Started', detail: 'Recording active', color: '#f59e0b' },
     { type: 'MEETING_ENDED', time: '11:04', label: 'Meeting Ended', detail: 'Duration: 21 minutes', color: '#10b981' },
@@ -53,6 +54,28 @@ export default function VisitDetailPage() {
                   <div style={{ fontWeight: 600, fontSize: '0.875rem', marginTop: '2px' }}>{value}</div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Verification Status */}
+          <div className="card" style={{ border: '1px solid var(--color-success)', background: 'rgba(16, 185, 129, 0.05)' }}>
+            <h3 style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-success)' }}>
+              <ShieldCheck size={18} /> Customer Verified
+            </h3>
+            
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: 'var(--color-bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                <Camera size={24} color="var(--color-text-muted)" />
+                {/* Mock image overlay */}
+                <div style={{ position: 'absolute', width: '64px', height: '64px', background: 'url(https://i.pravatar.cc/150?img=11) center/cover' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px', color: 'var(--color-text-primary)' }}>OTP Authenticated</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Mobile: +91 98765 **112</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-brand-light)', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                  <MapPin size={12} /> 19.1235° N, 72.8378° E
+                </div>
+              </div>
             </div>
           </div>
 
