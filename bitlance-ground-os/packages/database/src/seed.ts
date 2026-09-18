@@ -14,11 +14,11 @@ async function main() {
 
   // ── Organization ──────────────────────────────────────────
   const org = await prisma.organization.upsert({
-    where: { slug: 'lifestyle-homes' },
+    where: { slug: 'bitlance tech hub' },
     update: {},
     create: {
-      name: 'Lifestyle Homes',
-      slug: 'lifestyle-homes',
+      name: 'bitlance tech hub',
+      slug: 'bitlance-tech-hub',
       settings: {
         primaryColor: '#6366f1',
         voiceAIEnabled: true,
@@ -34,11 +34,11 @@ async function main() {
   const pwHash = await bcrypt.hash('demo1234', 12);
 
   const ceoUser = await prisma.user.upsert({
-    where: { email: 'ceo@lifestylehomes.in' },
+    where: { email: 'ceo@bitlance.in' },
     update: {},
     create: {
       organizationId: org.id,
-      email: 'ceo@lifestylehomes.in',
+      email: 'ceo@bitlance.in',
       passwordHash: pwHash,
       firstName: 'Anurag',
       lastName: 'Dhole',
@@ -47,40 +47,40 @@ async function main() {
   });
 
   const managerUser = await prisma.user.upsert({
-    where: { email: 'manager@lifestylehomes.in' },
+    where: { email: 'manager@bitlance.in' },
     update: {},
     create: {
       organizationId: org.id,
-      email: 'manager@lifestylehomes.in',
+      email: 'manager@bitlance.in',
       passwordHash: pwHash,
-      firstName: 'Rahul',
-      lastName: 'Saini',
+      firstName: 'Nilesh',
+      lastName: 'Somnawane',
       role: 'SALES_MANAGER',
     },
   });
 
   const amanUser = await prisma.user.upsert({
-    where: { email: 'aman@lifestylehomes.in' },
+    where: { email: 'aman@bitlance.in' },
     update: {},
     create: {
       organizationId: org.id,
-      email: 'aman@lifestylehomes.in',
+      email: 'nilesh@bitlance.in',
       passwordHash: pwHash,
-      firstName: 'Aman',
-      lastName: 'Sharma',
+      firstName: 'Nilesh',
+      lastName: 'Somnawane',
       role: 'AGENT',
     },
   });
 
   const priyaUser = await prisma.user.upsert({
-    where: { email: 'priya@lifestylehomes.in' },
+    where: { email: 'nilesh@bitlance.in' },
     update: {},
     create: {
       organizationId: org.id,
-      email: 'priya@lifestylehomes.in',
+      email: 'nilesh@bitlance.in',
       passwordHash: pwHash,
-      firstName: 'Priya',
-      lastName: 'Nair',
+      firstName: 'Nilesh',
+      lastName: 'Somnawane',
       role: 'AGENT',
     },
   });
