@@ -42,6 +42,16 @@ export class MockMapsProvider {
     };
   }
 
+  async calculateDistance(from: { lat: number; lng: number }, to: { lat: number; lng: number }): Promise<number> {
+    const R = 6371e3; // metres
+    const φ1 = (from.lat * Math.PI) / 180;
+    const φ2 = (to.lat * Math.PI) / 180;
+    const Δφ = ((to.lat - from.lat) * Math.PI) / 180;
+    const Δλ = ((to.lng - from.lng) * Math.PI) / 180;
+    const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
   async calculateRoute(
     originLat: number,
     originLng: number,

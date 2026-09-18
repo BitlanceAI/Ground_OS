@@ -1,9 +1,19 @@
+// ============================================================
+// MEETINGS ROUTER — Real Prisma + AI pipeline integration
+// Gracefully falls back to rich mock data if DB unavailable
+// ============================================================
+
 import { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { aiOrchestrator } from '../../orchestrator/ai.orchestrator';
+import { eventBus } from '../../events/event-bus';
+import { getStorageProvider } from '../../adapters/storage.adapter';
+import prisma from '@ground-os/database';
 
 const router = Router();
+const storageProvider = getStorageProvider();
 
+// ── Mock fallback ─────────────────────────────────────────
 const mockMeetings = [
   {
     id: 'mtg-001',
@@ -13,28 +23,25 @@ const mockMeetings = [
     customerId: 'cust-rajesh-01',
     customerName: 'Rajesh Kumar',
     status: 'ANALYSED',
-    durationSeconds: 1680, // 28 mins
+    durationSeconds: 1680,
     startedAt: new Date(Date.now() - 3600000).toISOString(),
     endedAt: new Date(Date.now() - 1920000).toISOString(),
     audioUrl: 'https://audio.bitlance-os.internal/recordings/mtg-001.mp3',
-    audioWaveform: [12, 45, 67, 89, 45, 23, 78, 90, 85, 43, 67, 98, 76, 54, 32, 65, 87, 92, 45, 67],
-    transcript: `
-Aman: Namaste Rajesh ji, thank you for your time today.
+    transcript: `Aman: Namaste Rajesh ji, thank you for your time today.
 Rajesh Kumar: Namaste Aman. Haan, I saw your advertisement on Instagram about Lifestyle Palms. We are looking to buy a 3BHK for our family.
-Aman: Wonderful. Could you share what specific carpet area or configuration you are prioritizing?
+Aman: Wonderful. Could you share what specific carpet area you are prioritizing?
 Rajesh Kumar: We need at least 1600 sq.ft. East facing preferably because of Vastu. Also, parking for 2 cars is a must.
-Aman: Lifestyle Palms 3BHK Grand Edition offers 1650 sq.ft super area with 1320 sq.ft carpet area, including 2 dedicated covered stilt parkings.
+Aman: Lifestyle Palms 3BHK Grand Edition offers 1650 sq.ft super area, 2 dedicated covered stilt parkings.
 Rajesh Kumar: What is the price range?
-Aman: The all-inclusive launch price for East-facing units on 7th floor is ₹96.5 Lakhs, including GST, club membership, and parking.
-Rajesh Kumar: Hmm, DLF Sky is offering 3BHK in Sector 63 for ₹88 Lakhs. Why is Lifestyle Palms higher?
-Aman: Great question Rajesh ji. DLF's super-to-carpet efficiency is only 68%, giving you 1150 sq.ft carpet, whereas ours is 80% (1320 sq.ft). You get 170 sq.ft more usable area, plus RERA delivery is Q1 next year.
-Rajesh Kumar: Ah, that makes sense. Can you send me the comparative breakdown on WhatsApp?
-Aman: Absolutely, I will send you a personalized unit comparison right after this meeting. Can we schedule a site visit for Saturday at 11 AM?
-Rajesh Kumar: Yes, Saturday 11 AM works for me and my wife.
-    `.trim(),
+Aman: The all-inclusive launch price for East-facing units is ₹96.5 Lakhs, including GST.
+Rajesh Kumar: DLF Sky is offering 3BHK in Sector 63 for ₹88 Lakhs. Why is Lifestyle Palms higher?
+Aman: DLF's super-to-carpet efficiency is only 68%, giving you 1150 sq.ft carpet, whereas ours is 80% (1320 sq.ft). You get 170 sq.ft more usable area.
+Rajesh Kumar: Can you send me the comparative breakdown on WhatsApp?
+Aman: Absolutely. Can we schedule a site visit for Saturday at 11 AM?
+Rajesh Kumar: Yes, Saturday 11 AM works.`.trim(),
     insight: {
-      summary: 'High-intent 3BHK enquiry for self-use. Customer required min 1600 sq.ft, East-facing, and 2 parkings. Overcame DLF price objection via carpet-area efficiency metric. Saturday 11 AM site visit tentatively agreed.',
-      customerIntent: 'Immediate purchase (within 60-90 days), highly qualified buyer with budget up to ₹1.05 Cr.',
+      summary: 'High-intent 3BHK enquiry for self-use. Customer required min 1600 sq.ft, East-facing, 2 parkings. Overcame DLF price objection via carpet-area efficiency. Saturday 11 AM site visit agreed.',
+      customerIntent: 'Immediate purchase within 60-90 days, highly qualified buyer up to ₹1.05 Cr.',
       intentLevel: 'VERY_HIGH',
       requirement: {
         propertyType: 'Residential Apartment',
@@ -49,75 +56,211 @@ Rajesh Kumar: Yes, Saturday 11 AM works for me and my wife.
         paymentPreference: '30:70 Construction Linked / Bank Loan Approved',
       },
       objections: [
-        {
-          type: 'PRICE_VS_COMPETITOR',
-          description: 'Mentioned DLF Sky offering 3BHK at ₹88 Lakhs vs ₹96.5 Lakhs.',
-          severity: 'HIGH',
-        }
+        { type: 'PRICE_VS_COMPETITOR', description: 'Mentioned DLF Sky offering 3BHK at ₹88 Lakhs vs ₹96.5 Lakhs.', severity: 'HIGH' },
       ],
-      competitorMentions: [
-        {
-          name: 'DLF Sky',
-          project: 'Sector 63 Heights',
-          pricePoint: 8800000,
-          location: 'Sector 63, Noida',
-        }
-      ],
+      competitorMentions: [{ name: 'DLF Sky', project: 'Sector 63 Heights', pricePoint: 8800000, location: 'Sector 63, Noida' }],
       sentiment: 'POSITIVE',
       qualityScore: 94,
-      coachingNotes: 'Flawless objection handling using usable carpet efficiency calculation. Promptly secured site visit micro-commitment.',
-      recommendedAction: 'Dispatch WhatsApp comparison infographic immediately; trigger automated Voice AI confirmation call Friday 5 PM.',
-    }
+      recommendedAction: 'Dispatch WhatsApp comparison infographic immediately; trigger Voice AI confirmation call Friday 5 PM.',
+    },
   }
 ];
 
-// GET /api/v1/meetings
-router.get('/', (req: AuthenticatedRequest, res: Response) => {
-  res.json({ success: true, data: mockMeetings });
+function getOrgId(req: AuthenticatedRequest): string {
+  return (req as any).user?.orgId || 'org-demo-001';
+}
+
+// ── GET /api/v1/meetings ───────────────────────────────────
+router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = getOrgId(req);
+  const { agentId, customerId, status } = req.query;
+
+  try {
+    const where: any = { organizationId: orgId };
+    if (agentId) where.agentId = agentId;
+    if (customerId) where.customerId = customerId;
+    if (status) where.status = status;
+
+    const meetings = await prisma.meeting.findMany({
+      where,
+      include: {
+        agent: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        customer: { select: { id: true, firstName: true, lastName: true, businessName: true } },
+        insight: true,
+      },
+      orderBy: { startedAt: 'desc' },
+      take: 20,
+    });
+
+    return res.json({ success: true, data: meetings });
+  } catch (err) {
+    console.warn('[Meetings] DB unavailable, using mock:', (err as Error).message);
+    return res.json({ success: true, data: mockMeetings, _mock: true });
+  }
 });
 
-// GET /api/v1/meetings/:meetingId
-router.get('/:meetingId', (req: AuthenticatedRequest, res: Response) => {
-  const meeting = mockMeetings.find(m => m.id === req.params.meetingId) || mockMeetings[0];
-  res.json({ success: true, data: meeting });
+// ── GET /api/v1/meetings/:meetingId ───────────────────────
+router.get('/:meetingId', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: req.params.meetingId },
+      include: {
+        agent: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        customer: { select: { id: true, firstName: true, lastName: true, businessName: true, phone: true } },
+        insight: true,
+        transcript: true,
+        visit: { select: { id: true, destination: true } },
+        recording: true,
+      },
+    });
+
+    if (!meeting) {
+      return res.status(404).json({ success: false, message: 'Meeting not found' });
+    }
+
+    return res.json({ success: true, data: meeting });
+  } catch (err) {
+    console.warn('[Meetings] DB unavailable, using mock:', (err as Error).message);
+    const meeting = mockMeetings.find(m => m.id === req.params.meetingId) || mockMeetings[0];
+    return res.json({ success: true, data: meeting, _mock: true });
+  }
 });
 
-// POST /api/v1/meetings/start
-router.post('/start', (req: AuthenticatedRequest, res: Response) => {
-  const { visitId, customerId, agentId } = req.body;
-  const newMeeting = {
-    id: `mtg-${Date.now()}`,
-    visitId: visitId || 'vis-001',
-    agentId: agentId || 'agt-aman-01',
-    agentName: 'Aman Sharma',
-    customerId: customerId || 'cust-rajesh-01',
-    customerName: 'Rajesh Kumar',
-    status: 'RECORDING',
-    durationSeconds: 0,
-    startedAt: new Date().toISOString(),
-    transcript: '',
-    insight: null,
-  };
-  mockMeetings.unshift(newMeeting as any);
-  res.status(201).json({ success: true, data: newMeeting });
+// ── POST /api/v1/meetings/:meetingId/recording-upload-url ─
+// Returns a presigned URL for the agent to upload audio directly
+router.post('/:meetingId/recording-upload-url', async (req: AuthenticatedRequest, res: Response) => {
+  const { filename, contentType = 'audio/webm' } = req.body;
+
+  try {
+    const key = `meetings/${req.params.meetingId}/${filename || 'recording.webm'}`;
+    const { uploadUrl, downloadUrl } = await storageProvider.getUploadUrl(key, contentType);
+    return res.json({ success: true, uploadUrl, downloadUrl, key });
+  } catch (err) {
+    // Mock presigned URL for demo
+    return res.json({
+      success: true,
+      uploadUrl: `http://localhost:4000/api/v1/meetings/${req.params.meetingId}/recording-mock-upload`,
+      downloadUrl: `https://audio.bitlance-os.internal/recordings/${req.params.meetingId}.webm`,
+      key: `meetings/${req.params.meetingId}/recording.webm`,
+      _mock: true,
+    });
+  }
 });
 
-// POST /api/v1/meetings/:meetingId/complete-and-analyze
-router.post('/:meetingId/complete-and-analyze', async (req: AuthenticatedRequest, res: Response) => {
-  const meeting = mockMeetings.find(m => m.id === req.params.meetingId) || mockMeetings[0];
-  meeting.status = 'PROCESSING';
+// ── POST /api/v1/meetings/:meetingId/recording-confirmed ──
+// Called after agent successfully uploaded the recording
+router.post('/:meetingId/recording-confirmed', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = getOrgId(req);
+  const { audioUrl, durationSeconds } = req.body;
 
-  // Process through AI Orchestrator
-  const insight = await aiOrchestrator.processMeeting(meeting.id, 'https://audio.bitlance-os.internal/mock.mp3', {
-    customerName: meeting.customerName,
-    agentName: meeting.agentName,
-    projectName: 'Lifestyle Palms',
+  try {
+    await prisma.meeting.update({
+      where: { id: req.params.meetingId },
+      data: { status: 'PROCESSING', durationSeconds: durationSeconds ? parseInt(durationSeconds) : null },
+    });
+    // Also create recording record
+    await prisma.recording.create({
+      data: {
+        meetingId: req.params.meetingId,
+        storageKey: `meetings/${req.params.meetingId}/recording.webm`,
+        storageUrl: audioUrl,
+      },
+    });
+  } catch (err) {
+    console.warn('[Meetings] DB update failed, continuing anyway:', (err as Error).message);
+  }
+
+  // Enqueue AI pipeline
+  await eventBus.recordingUploaded(orgId, {
+    meetingId: req.params.meetingId,
+    audioUrl: audioUrl || `https://audio.bitlance-os.internal/recordings/${req.params.meetingId}.webm`,
+    durationSeconds: durationSeconds || 0,
   });
 
-  meeting.status = 'ANALYSED';
-  meeting.insight = insight as any;
+  return res.json({ success: true, message: 'Recording confirmed. AI processing started.' });
+});
 
-  res.json({ success: true, data: meeting });
+// ── POST /api/v1/meetings/:meetingId/complete-and-analyze ─
+// Synchronous AI analysis (for demo / testing)
+router.post('/:meetingId/complete-and-analyze', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = getOrgId(req);
+
+  let meeting = mockMeetings[0];
+  let meetingData: any = { agentName: 'Aman Sharma', customerName: 'Rajesh Kumar' };
+
+  try {
+    const dbMeeting = await prisma.meeting.findUnique({
+      where: { id: req.params.meetingId },
+      include: {
+        agent: { include: { user: { select: { firstName: true, lastName: true } } } },
+        customer: { select: { firstName: true, lastName: true } },
+        recording: { select: { storageUrl: true } },
+      },
+    });
+
+    if (dbMeeting) {
+      meeting = dbMeeting as any;
+      meetingData = {
+        agentName: dbMeeting.agent?.user ? `${dbMeeting.agent.user.firstName} ${dbMeeting.agent.user.lastName}` : 'Agent',
+        customerName: dbMeeting.customer ? `${dbMeeting.customer.firstName} ${dbMeeting.customer.lastName}` : 'Customer',
+      };
+
+      await prisma.meeting.update({
+        where: { id: req.params.meetingId },
+        data: { status: 'PROCESSING' },
+      });
+    }
+  } catch (err) {
+    console.warn('[Meetings] DB unavailable, running mock analysis:', (err as Error).message);
+  }
+
+  // Run AI orchestrator (Gemini → OpenAI → Mock)
+  const insight = await aiOrchestrator.processMeeting(
+    req.params.meetingId,
+    (meeting as any).audioUrl || 'https://audio.bitlance-os.internal/mock.mp3',
+    { customerName: meetingData.customerName, agentName: meetingData.agentName, projectName: 'Lifestyle Palms' }
+  );
+
+  // Persist insight
+  try {
+    await prisma.meetingInsight.upsert({
+      where: { meetingId: req.params.meetingId },
+      create: {
+        meetingId: req.params.meetingId,
+        summary: insight.summary,
+        customerIntent: insight.customerIntent,
+        intentLevel: insight.intentLevel as any,
+        sentiment: insight.sentiment,
+        qualityScore: insight.qualityScore,
+        requirement: insight.requirement as any,
+        objections: insight.objections as any,
+        competitorMentions: insight.competitorMentions as any,
+        recommendedAction: insight.recommendedAction,
+      },
+      update: {
+        summary: insight.summary,
+        intentLevel: insight.intentLevel as any,
+        qualityScore: insight.qualityScore,
+      },
+    });
+
+    await prisma.meeting.update({
+      where: { id: req.params.meetingId },
+      data: { status: 'ANALYSED' },
+    });
+  } catch (err) {
+    console.warn('[Meetings] Insight persist failed:', (err as Error).message);
+  }
+
+  // Emit AI report ready
+  await eventBus.aiReportReady(orgId, {
+    meetingId: req.params.meetingId,
+    customerId: (meeting as any).customerId || 'cust-rajesh-01',
+    leadScore: insight.qualityScore,
+    intentLevel: insight.intentLevel,
+  });
+
+  return res.json({ success: true, data: { ...meeting, status: 'ANALYSED', insight } });
 });
 
 export default router;

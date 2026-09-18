@@ -8,6 +8,10 @@ const envSchema = z.object({
   JWT_SECRET: z.string().default('bitlance-ground-os-jwt-secret-key-development-mode-12345'),
   JWT_REFRESH_SECRET: z.string().default('bitlance-ground-os-jwt-refresh-secret-development-67890'),
   CORS_ORIGINS: z.string().default('http://localhost:5173,http://localhost:5174'),
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_PUBLISHABLE_KEY: z.string().optional(),
+  SUPABASE_SECRET_KEY: z.string().optional(),
+  SUPABASE_JWKS_URL: z.string().optional(),
 });
 
 export const env = envSchema.parse(process.env);

@@ -24,6 +24,7 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   isAuthenticated: boolean;
+  tokens: { accessToken: string; refreshToken: string } | null;
   login: (data: { user: User; organization: Organization; tokens: { accessToken: string; refreshToken: string } }) => void;
   logout: () => void;
   setTokens: (tokens: { accessToken: string }) => void;
@@ -36,6 +37,7 @@ export const useAuthStore = create<AuthState>()(
       organization: null,
       accessToken: null,
       refreshToken: null,
+      tokens: null,
       isAuthenticated: false,
 
       login: ({ user, organization, tokens }) =>
@@ -44,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
           organization,
           accessToken: tokens.accessToken,
           refreshToken: tokens.refreshToken,
+          tokens,
           isAuthenticated: true,
         }),
 
@@ -53,11 +56,25 @@ export const useAuthStore = create<AuthState>()(
           organization: null,
           accessToken: null,
           refreshToken: null,
+          tokens: null,
           isAuthenticated: false,
         }),
 
-      setTokens: ({ accessToken }) => set({ accessToken }),
+      setTokens: ({ accessToken }) => set((s) => ({
+        accessToken,
+        tokens: s.tokens ? { ...s.tokens, accessToken } : null,
+      })),
     }),
-    { name: 'ground-os-auth', partialize: (s) => ({ user: s.user, organization: s.organization, accessToken: s.accessToken, refreshToken: s.refreshToken, isAuthenticated: s.isAuthenticated }) }
+    {
+      name: 'auth-store',
+      partialize: (s) => ({
+        user: s.user,
+        organization: s.organization,
+        accessToken: s.accessToken,
+        refreshToken: s.refreshToken,
+        tokens: s.tokens,
+        isAuthenticated: s.isAuthenticated,
+      }),
+    }
   )
 );
