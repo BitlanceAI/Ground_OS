@@ -6,14 +6,14 @@ import toast from 'react-hot-toast';
 
 // Demo credentials for quick login
 const DEMO_USERS = [
-  { label: 'CEO', email: 'ceo@lifestylehomes.in', password: 'demo1234', role: 'admin' },
+  { label: 'CEO', email: 'adminbitlance@gmail.com', password: 'demo1234', role: 'admin' },
   { label: 'Agent (Nilesh)', email: 'nilesh@lifestylehomes.in', password: 'demo1234', role: 'agent' },
 ];
 
 // Mock login response
 const MOCK_USERS: Record<string, object> = {
-  'ceo@lifestylehomes.in': {
-    user: { id: 'u1', organizationId: 'org1', email: 'ceo@lifestylehomes.in', firstName: 'Anurag', lastName: 'Dhole', role: 'admin' },
+  'adminbitlance@gmail.com': {
+    user: { id: 'u1', organizationId: 'org1', email: 'adminbitlance@gmail.com', firstName: 'Anurag', lastName: 'Dhole', role: 'admin' },
     organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
     tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
   },
