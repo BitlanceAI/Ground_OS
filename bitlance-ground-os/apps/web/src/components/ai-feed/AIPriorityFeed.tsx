@@ -86,7 +86,7 @@ export default function AIPriorityFeed({ items }: Props) {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   {item.badge && (
-                    <span className={`badge ${FEED_BADGE_CLASSES[item.type] || 'badge-brand'}`}>
+                    <span className={`badge ${FEED_BADGE_COLORS[item.type] || 'badge-brand'}`}>
                       {item.badge}
                     </span>
                   )}
@@ -112,9 +112,3 @@ export default function AIPriorityFeed({ items }: Props) {
   );
 }
 
-const FEED_BADGE_CLASSES: Record<string, string> = {
-  HIGH_INTENT: 'badge-error',
-  FOLLOW_UP_RISK: 'badge-warning',
-  MARKET_SIGNAL: 'badge-brand',
-  AGENT_COACHING: 'badge-success',
-};

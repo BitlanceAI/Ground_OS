@@ -6,25 +6,19 @@ import toast from 'react-hot-toast';
 
 // Demo credentials for quick login
 const DEMO_USERS = [
-  { label: 'CEO', email: 'ceo@lifestylehomes.in', password: 'demo1234', role: 'CEO' },
-  { label: 'Manager', email: 'manager@lifestylehomes.in', password: 'demo1234', role: 'SALES_MANAGER' },
-  { label: 'Agent (Aman)', email: 'aman@lifestylehomes.in', password: 'demo1234', role: 'AGENT' },
+  { label: 'CEO', email: 'ceo@lifestylehomes.in', password: 'demo1234', role: 'admin' },
+  { label: 'Agent (Nilesh)', email: 'nilesh@lifestylehomes.in', password: 'demo1234', role: 'agent' },
 ];
 
 // Mock login response
 const MOCK_USERS: Record<string, object> = {
   'ceo@lifestylehomes.in': {
-    user: { id: 'u1', organizationId: 'org1', email: 'ceo@lifestylehomes.in', firstName: 'Anurag', lastName: 'Dhole', role: 'CEO' },
+    user: { id: 'u1', organizationId: 'org1', email: 'ceo@lifestylehomes.in', firstName: 'Anurag', lastName: 'Dhole', role: 'admin' },
     organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
     tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
   },
-  'manager@lifestylehomes.in': {
-    user: { id: 'u2', organizationId: 'org1', email: 'manager@lifestylehomes.in', firstName: 'Rahul', lastName: 'Saini', role: 'SALES_MANAGER' },
-    organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
-    tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
-  },
-  'aman@lifestylehomes.in': {
-    user: { id: 'u3', organizationId: 'org1', email: 'aman@lifestylehomes.in', firstName: 'Aman', lastName: 'Sharma', role: 'AGENT' },
+  'nilesh@lifestylehomes.in': {
+    user: { id: 'u3', organizationId: 'org1', email: 'nilesh@lifestylehomes.in', firstName: 'Nilesh', lastName: 'Kumar', role: 'agent' },
     organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
     tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
   },

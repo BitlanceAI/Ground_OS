@@ -638,6 +638,10 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 
 /* ── Utilities ──────────────────────────────────────────────── */
 .flex { display: flex; }
+
+.map-tiles {
+  filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+}
 .flex-col { flex-direction: column; }
 .items-center { align-items: center; }
 .justify-between { justify-content: space-between; }

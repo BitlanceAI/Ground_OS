@@ -32,16 +32,19 @@ export default function LiveAgentMap({ agents }: LiveAgentMapProps) {
 
     // Dynamic import of Leaflet to avoid SSR issues
     import('leaflet').then(L => {
-      const map = L.map(mapRef.current!, {
+      if (!mapRef.current) return;
+      
+      const map = L.map(mapRef.current, {
         center: [19.12, 72.84],
         zoom: 13,
         zoomControl: true,
         attributionControl: false,
       });
 
-      // Dark tile layer
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      // OpenStreetMap with CSS filter for dark theme (to bypass Carto API key requirement)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
+        className: 'map-tiles'
       }).addTo(map);
 
       mapInstanceRef.current = map;

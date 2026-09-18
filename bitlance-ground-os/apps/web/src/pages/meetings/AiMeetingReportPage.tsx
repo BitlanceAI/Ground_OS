@@ -1,11 +1,68 @@
 import { useNavigate } from 'react-router-dom';
 import { Brain, TrendingUp, AlertTriangle, ChevronRight, MessageSquare, Send, Star } from 'lucide-react';
 import { DEMO_MEETING_INSIGHT } from '../../lib/demo-data';
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 
 const m = DEMO_MEETING_INSIGHT;
 
 export default function AiMeetingReportPage() {
   const navigate = useNavigate();
+  const [sending, setSending] = useState(false);
+
+  const shareWithCeo = async () => {
+    setSending(true);
+    try {
+      const phoneId = import.meta.env.VITE_WHATSAPP_PHONE_ID || '744188362103708';
+      const token = import.meta.env.VITE_WHATSAPP_GLOBAL_TOKEN;
+      
+      if (!token) {
+        throw new Error("WhatsApp token not configured in .env");
+      }
+
+      // Hardcode a default phone number since user didn't provide one.
+      // Replace this with the actual CEO's phone number + country code (e.g. 919876543210 for India)
+      const targetPhone = "919999999999"; 
+
+      const messageText = `*AI Meeting Report: ${m.customerName}*\n\n` +
+        `*Quality Score:* ${m.qualityScore}/100\n` +
+        `*Intent Level:* ${m.intentLevel}\n\n` +
+        `*Summary:* ${m.summary}\n\n` +
+        `*Recommended Action:* ${m.recommendedAction}`;
+
+      const response = await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          recipient_type: "individual",
+          to: targetPhone,
+          type: "text",
+          text: {
+            preview_url: false,
+            body: messageText
+          }
+        })
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success("Successfully sent report to CEO via WhatsApp!");
+      } else {
+        console.error("WhatsApp API Error:", data);
+        toast.error(`Failed to send: ${data.error?.message || 'Unknown error'}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to send WhatsApp message");
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -19,7 +76,13 @@ export default function AiMeetingReportPage() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn btn-secondary">Share with CEO</button>
+          <button 
+            className="btn btn-secondary" 
+            onClick={shareWithCeo}
+            disabled={sending}
+          >
+            {sending ? 'Sending...' : 'Share with CEO'}
+          </button>
           <button className="btn btn-primary" onClick={() => navigate('/customers/c1')}>
             View Customer 360 <ChevronRight size={14} />
           </button>

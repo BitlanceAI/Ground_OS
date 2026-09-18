@@ -15,15 +15,22 @@ import VoiceAIPage from './pages/voice/VoiceAIPage';
 import CreativeStudioPage from './pages/creatives/CreativeStudioPage';
 import AutomationBuilderPage from './pages/workflows/AutomationBuilderPage';
 import ExecutiveIntelligencePage from './pages/analytics/ExecutiveIntelligencePage';
+import VisitsListPage from './pages/visits/VisitsListPage';
 
 function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) {
   const { isAuthenticated, user } = useAuthStore();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   
-  if (allowedRoles && user?.role && !allowedRoles.includes(user.role)) {
-    // If user role is agent but tries to access admin route, redirect to their home
-    if (user.role === 'agent') return <Navigate to="/visits" replace />;
-    return <Navigate to="/" replace />;
+  if (allowedRoles && user?.role) {
+    // Normalize legacy roles from localStorage
+    const normalizedRole = user.role.toLowerCase() === 'ceo' || user.role.toLowerCase() === 'sales_manager' ? 'admin' : 
+                           user.role.toLowerCase() === 'agent' ? 'agent' : user.role;
+                           
+    if (!allowedRoles.includes(normalizedRole)) {
+      if (normalizedRole === 'agent') return <Navigate to="/visits" replace />;
+      // If we don't know the role at all, redirect to a safe endpoint or login to prevent loops
+      return <Navigate to="/login" replace />;
+    }
   }
   
   return <>{children}</>;
@@ -47,7 +54,7 @@ export default function App() {
       }>
         {/* Default route based on role */}
         <Route index element={
-          user?.role === 'agent' ? <Navigate to="/visits" replace /> : <Navigate to="/command" replace />
+          user?.role?.toLowerCase() === 'agent' ? <Navigate to="/visits" replace /> : <Navigate to="/command" replace />
         } />
         
         {/* Admin Only Routes */}
@@ -99,12 +106,7 @@ export default function App() {
         } />
 
         {/* Shared / Agent Routes */}
-        {/* For Agent "nilesh", we might redirect them to their specific visits. 
-            For now, we'll give them access to visit and meeting detail pages. */}
-        <Route path="visits" element={
-          // Placeholder for an agent's visits list. If AgentDetailPage shows visits, we can use that.
-          <AgentDetailPage />
-        } />
+        <Route path="visits" element={<VisitsListPage />} />
         <Route path="visits/:visitId" element={<VisitDetailPage />} />
         <Route path="meetings/:meetingId" element={<MeetingModePage />} />
         <Route path="meetings/:meetingId/report" element={<AiMeetingReportPage />} />

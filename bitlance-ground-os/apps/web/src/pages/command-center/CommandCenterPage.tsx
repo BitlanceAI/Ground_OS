@@ -39,11 +39,13 @@ export default function CommandCenterPage() {
 
       {/* Executive Metrics — 6 cards */}
       <div className="grid-6">
-        {DEMO_METRICS.map((m) => (
+        {DEMO_METRICS.map((m) => {
+          const Icon = m.icon;
+          return (
           <div key={m.id} className="metric-card" id={`metric-${m.id}`}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span className="metric-label">{m.label}</span>
-              <m.icon size={16} color={m.color} />
+              <Icon size={16} color={m.color} />
             </div>
             <div className="metric-value" style={{ color: m.color }}>{m.value}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: m.change > 0 ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
@@ -51,7 +53,8 @@ export default function CommandCenterPage() {
               {m.change > 0 ? '+' : ''}{m.change}% vs yesterday
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Main content — Map + Feed */}
