@@ -36,7 +36,7 @@ export default function CommandCenterPage() {
     }
   }, []);
 
-  // Fetch continuous live GPS location via watchPosition so CEO sees actual agent presence (Najafgarh, Delhi)
+  // Fetch continuous live GPS location via watchPosition so CEO sees actual agent presence
   useEffect(() => {
     let watchId: number | null = null;
     if (navigator.geolocation) {
@@ -45,18 +45,12 @@ export default function CommandCenterPage() {
         let lng = pos.coords.longitude;
         const accuracy = pos.coords.accuracy;
 
-        // If coarse IP geolocation returns Old Delhi Red Fort (28.654, 77.237), auto-correct to Najafgarh, Delhi
-        if (Math.abs(lat - 28.654) < 0.015 && Math.abs(lng - 77.237) < 0.015) {
-          lat = 28.6090;
-          lng = 76.9855;
-        }
-
         const address = await reverseGeocode(lat, lng);
         const loc = {
           lat,
           lng,
           accuracy,
-          address: address?.includes('Old Delhi') ? 'Najafgarh, Delhi' : (address || 'Najafgarh, Delhi'),
+          address: address || 'Unknown Location',
           isLiveGPS: true,
           timestamp: new Date().toISOString(),
         };
@@ -67,17 +61,7 @@ export default function CommandCenterPage() {
       navigator.geolocation.getCurrentPosition(
         updatePosition,
         (err) => {
-          console.warn('[GPS] Initial lookup fallback to Najafgarh:', err.message);
-          const defaultLoc = {
-            lat: 28.6090,
-            lng: 76.9855,
-            accuracy: 10,
-            address: 'Najafgarh, Delhi',
-            isLiveGPS: true,
-            timestamp: new Date().toISOString(),
-          };
-          localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultLoc));
-          setLiveLocation(defaultLoc);
+          console.warn('[GPS] Initial lookup failed:', err.message);
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -87,17 +71,6 @@ export default function CommandCenterPage() {
         (err) => console.warn('[GPS] Watch position notice:', err.message),
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
       );
-    } else {
-      const defaultLoc = {
-        lat: 28.6090,
-        lng: 76.9855,
-        accuracy: 10,
-        address: 'Najafgarh, Delhi',
-        isLiveGPS: true,
-        timestamp: new Date().toISOString(),
-      };
-      localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultLoc));
-      setLiveLocation(defaultLoc);
     }
 
     return () => {
@@ -106,20 +79,6 @@ export default function CommandCenterPage() {
       }
     };
   }, []);
-
-  const handleForceNajafgarhGPS = () => {
-    const loc = {
-      lat: 28.6090,
-      lng: 76.9855,
-      accuracy: 5,
-      address: 'Najafgarh, Delhi',
-      isLiveGPS: true,
-      timestamp: new Date().toISOString(),
-    };
-    localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
-    setLiveLocation(loc);
-    toast.success('Agent GPS re-centered to Najafgarh, Delhi!');
-  };
 
   // Dynamic visits from localStorage (strictly agent-created visits only)
   const visits = useMemo(() => {
@@ -176,8 +135,8 @@ export default function CommandCenterPage() {
         name: inProgress.customerName || 'Client',
         business: inProgress.business || inProgress.customerName || 'Shop Destination',
         address: inProgress.location || 'Client Location',
-        lat: inProgress.lat || 28.6090,
-        lng: inProgress.lng || 76.9855,
+        lat: inProgress.lat || 28.6139,
+        lng: inProgress.lng || 77.2090,
         status: inProgress.status,
       };
     }
@@ -192,9 +151,7 @@ export default function CommandCenterPage() {
         const savedLoc = localStorage.getItem('ground_os_agent_location');
         if (savedLoc) {
           const parsed = JSON.parse(savedLoc);
-          if (!parsed.address?.includes('Old Delhi') && !parsed.address?.includes('Red Fort')) {
-            agentLoc = parsed;
-          }
+          agentLoc = parsed;
         }
       } catch (e) {
         // ignore
@@ -206,13 +163,13 @@ export default function CommandCenterPage() {
       name: 'Nilesh Somnawane',
       firstName: 'Nilesh',
       lastName: 'Somnawane',
-      territory: agentLoc?.address || 'Najafgarh, Delhi',
+      territory: agentLoc?.address || 'New Delhi, India',
       phone: '+91 98765 43210',
       email: 'nilesh@lifestylehomes.in',
       role: 'FIELD_SALES_EXECUTIVE',
       status: (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE',
-      lat: agentLoc?.lat || 28.6090,
-      lng: agentLoc?.lng || 76.9855,
+      lat: agentLoc?.lat || 28.6139,
+      lng: agentLoc?.lng || 77.2090,
       accuracy: agentLoc?.accuracy,
       isLiveGPS: !!agentLoc?.isLiveGPS,
       visitsToday: visits.length,
@@ -289,29 +246,9 @@ export default function CommandCenterPage() {
                 Agent GPS Live ({liveLocation.lat.toFixed(3)}, {liveLocation.lng.toFixed(3)})
               </span>
             )}
-            <button
-              onClick={handleForceNajafgarhGPS}
-              title="Force Agent GPS Fix to Najafgarh, Delhi"
-              style={{
-                background: 'rgba(16, 185, 129, 0.15)',
-                border: '1px solid rgba(16, 185, 129, 0.4)',
-                color: '#10b981',
-                padding: '3px 10px',
-                borderRadius: '12px',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '4px',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              📍 Fix GPS to Najafgarh, Delhi
-            </button>
           </div>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5, marginTop: '4px', marginBottom: 0 }}>
-            CEO Live Field Intelligence · {liveLocation?.address || 'Najafgarh, Delhi'} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+            CEO Live Field Intelligence · {liveLocation?.address || 'Locating Agent...'} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>

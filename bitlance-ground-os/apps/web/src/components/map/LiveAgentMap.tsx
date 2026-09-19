@@ -120,7 +120,7 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
       if (!mapRef.current || mapInstanceRef.current) return;
       
       const map = L.map(mapRef.current, {
-        center: [28.6090, 76.9855], // Najafgarh, Delhi
+        center: [28.6139, 77.2090], // New Delhi default
         zoom: 15,
         zoomControl: true,
         attributionControl: false,
@@ -189,9 +189,9 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
         firstName: 'Nilesh',
         lastName: 'Somnawane',
         status: 'ONLINE',
-        lat: 28.6090,
-        lng: 76.9855,
-        territory: 'Najafgarh, Delhi',
+        lat: 28.6139,
+        lng: 77.2090,
+        territory: 'New Delhi, India',
         currentCustomer: destinationPlace?.name || null,
       }];
 
