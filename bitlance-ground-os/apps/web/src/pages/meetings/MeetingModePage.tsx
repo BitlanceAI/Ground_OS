@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { evaluateMeetingTranscript, MeetingAnalysisResult } from '../../lib/meeting-evaluator';
+import PostMeetingFormModal, { PostMeetingFormData } from '../../components/meetings/PostMeetingFormModal';
 
 type Phase = 'arrive' | 'meeting' | 'complete';
 
@@ -35,6 +36,11 @@ export default function MeetingModePage() {
     return (location.state as any)?.purpose || 'Retail inventory management & commercial display software pitch';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Post-meeting form state
+  const [showPostMeetingForm, setShowPostMeetingForm] = useState(false);
+  const [pendingTranscriptItems, setPendingTranscriptItems] = useState<TranscriptUtterance[]>([]);
+  const [pendingRawTranscript, setPendingRawTranscript] = useState('');
 
   // Audio Recording State
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -198,7 +204,7 @@ export default function MeetingModePage() {
     await startRecording();
   };
 
-  // Stop Recording and Transcribe + Run Objective AI Evaluation
+  // Stop Recording, buffer audio, then show post-meeting form
   const handleEndMeeting = async () => {
     setMeetingActive(false);
     setIsProcessingAudio(true);
@@ -325,46 +331,11 @@ export default function MeetingModePage() {
       }
     }
 
-    // 2. Run Genuine AI Sales Meeting Evaluation
-    setProcessingStatus('AI analyzing sales interaction & intent...');
-    const evaluation = await evaluateMeetingTranscript({
-      transcriptText: fullRawTranscript,
-      businessName,
-      clientName: businessOwnerName,
-      agentName: 'Nilesh Somnawane',
-      durationSeconds: elapsed,
-    });
+    // 2. Save transcript to pending state and show post-meeting form
+    setPendingTranscriptItems(transcriptItems);
+    setPendingRawTranscript(fullRawTranscript);
 
-    setAnalysisResult(evaluation);
-    setOutcomeTag(evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent');
-    setNextAction(evaluation.nextAction);
-    setMeetingNotes(evaluation.summary);
-
-    // 3. Save to localStorage
-    const reportData = {
-      notes: evaluation.summary,
-      summary: evaluation.summary,
-      outcome: evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent',
-      intentLevel: evaluation.intentLevel,
-      qualityScore: evaluation.qualityScore,
-      objections: evaluation.objections,
-      recommendedAction: evaluation.recommendedAction,
-      nextAction: evaluation.nextAction,
-      qualityBreakdown: evaluation.qualityBreakdown,
-      businessName,
-      businessOwnerName,
-      purposeOfVisit,
-      agentName: 'Nilesh Somnawane',
-      duration: formatTime(elapsed > 0 ? elapsed : 14),
-      transcript: transcriptItems,
-      rawTranscript: fullRawTranscript,
-      updatedAt: new Date().toISOString(),
-    };
-
-    localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
-    localStorage.setItem('meeting_transcript_m1', JSON.stringify(transcriptItems));
-
-    // Mark visit as completed in agent visits list
+    // Mark visit as 'completed' immediately so Live count drops to 0
     try {
       const visitsRaw = localStorage.getItem('ground_os_agent_visits');
       if (visitsRaw) {
@@ -387,13 +358,144 @@ export default function MeetingModePage() {
       console.error(e);
     }
 
+    setIsProcessingAudio(false);
+    setShowPostMeetingForm(true);
+  };
+
+  // Process form data + transcript together through LLM, save final report, navigate
+  const handlePostMeetingFormSubmit = async (formData: PostMeetingFormData) => {
+    setShowPostMeetingForm(false);
+    setIsProcessingAudio(true);
+    setProcessingStatus('AI generating final meeting record...');
+
+    const evaluation = await evaluateMeetingTranscript({
+      transcriptText: pendingRawTranscript,
+      businessName,
+      clientName: businessOwnerName,
+      agentName: 'Nilesh Somnawane',
+      durationSeconds: elapsed,
+      postMeetingContext: {
+        expectedDealValue: formData.expectedDealValue,
+        followUpStatus: formData.followUpStatus,
+        followUpDate: formData.followUpDate,
+        agentObservations: formData.agentObservations,
+        keyHighlights: formData.keyHighlights,
+        productsDemoedOrDiscussed: formData.productsDemoedOrDiscussed,
+      },
+    });
+
+    setAnalysisResult(evaluation);
+    setOutcomeTag(evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent');
+    setNextAction(evaluation.nextAction);
+    setMeetingNotes(evaluation.summary);
+
+    const reportData = {
+      notes: evaluation.summary,
+      summary: evaluation.summary,
+      outcome: evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent',
+      intentLevel: evaluation.intentLevel,
+      qualityScore: evaluation.qualityScore,
+      objections: evaluation.objections,
+      recommendedAction: evaluation.recommendedAction,
+      nextAction: evaluation.nextAction,
+      qualityBreakdown: evaluation.qualityBreakdown,
+      businessName,
+      businessOwnerName,
+      purposeOfVisit,
+      agentName: 'Nilesh Somnawane',
+      duration: formatTime(elapsed > 0 ? elapsed : 14),
+      transcript: pendingTranscriptItems,
+      rawTranscript: pendingRawTranscript,
+      // Post-meeting form data
+      expectedDealValue: formData.expectedDealValue,
+      followUpStatus: formData.followUpStatus,
+      followUpDate: formData.followUpDate,
+      agentObservations: formData.agentObservations,
+      keyHighlights: formData.keyHighlights,
+      productsDiscussed: formData.productsDemoedOrDiscussed,
+      meetingDate: new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      meetingTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // Update pipeline value for CEO dashboard
+    if (formData.expectedDealValue && formData.expectedDealValue !== '0') {
+      const existing = JSON.parse(localStorage.getItem('ground_os_pipeline_value') || '[]');
+      existing.push({ value: formData.expectedDealValue, business: businessName, date: new Date().toISOString() });
+      localStorage.setItem('ground_os_pipeline_value', JSON.stringify(existing));
+    }
+
+    localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
+    localStorage.setItem('meeting_transcript_m1', JSON.stringify(pendingTranscriptItems));
+    window.dispatchEvent(new Event('storage'));
+
     setNotesSaved(true);
     setIsProcessingAudio(false);
     setPhase('complete');
-    toast.success('Meeting analyzed with AI intelligence!');
+    toast.success('AI report generated! Ready to submit to CEO.');
+  };
+
+  const handlePostMeetingSkip = async () => {
+    setShowPostMeetingForm(false);
+    setIsProcessingAudio(true);
+    setProcessingStatus('AI analyzing meeting...');
+
+    const evaluation = await evaluateMeetingTranscript({
+      transcriptText: pendingRawTranscript,
+      businessName,
+      clientName: businessOwnerName,
+      agentName: 'Nilesh Somnawane',
+      durationSeconds: elapsed,
+    });
+
+    setAnalysisResult(evaluation);
+    setOutcomeTag(evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent');
+    setNextAction(evaluation.nextAction);
+    setMeetingNotes(evaluation.summary);
+
+    const reportData = {
+      notes: evaluation.summary,
+      summary: evaluation.summary,
+      outcome: evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent',
+      intentLevel: evaluation.intentLevel,
+      qualityScore: evaluation.qualityScore,
+      objections: evaluation.objections,
+      recommendedAction: evaluation.recommendedAction,
+      nextAction: evaluation.nextAction,
+      qualityBreakdown: evaluation.qualityBreakdown,
+      businessName,
+      businessOwnerName,
+      purposeOfVisit,
+      agentName: 'Nilesh Somnawane',
+      duration: formatTime(elapsed > 0 ? elapsed : 14),
+      transcript: pendingTranscriptItems,
+      rawTranscript: pendingRawTranscript,
+      meetingDate: new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      meetingTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      updatedAt: new Date().toISOString(),
+    };
+
+    localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
+    localStorage.setItem('meeting_transcript_m1', JSON.stringify(pendingTranscriptItems));
+    window.dispatchEvent(new Event('storage'));
+
+    setNotesSaved(true);
+    setIsProcessingAudio(false);
+    setPhase('complete');
+    toast.success('Meeting analysis complete!');
   };
 
   return (
+    <>
+    {/* Post-Meeting Form Modal */}
+    {showPostMeetingForm && (
+      <PostMeetingFormModal
+        businessName={businessName}
+        businessOwnerName={businessOwnerName}
+        onSubmit={handlePostMeetingFormSubmit}
+        onSkip={handlePostMeetingSkip}
+      />
+    )}
     <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: 640, margin: '0 auto', paddingBottom: '40px' }}>
       {/* Header */}
       <div>
@@ -810,5 +912,6 @@ export default function MeetingModePage() {
         </div>
       )}
     </div>
+    </>
   );
 }

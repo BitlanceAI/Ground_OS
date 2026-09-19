@@ -120,8 +120,8 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
       if (!mapRef.current || mapInstanceRef.current) return;
       
       const map = L.map(mapRef.current, {
-        center: [28.5921, 77.0460], // Delhi NCR (Dwarka)
-        zoom: 14,
+        center: [28.6090, 76.9855], // Najafgarh, Delhi
+        zoom: 15,
         zoomControl: true,
         attributionControl: false,
         scrollWheelZoom: false, // Prevents map from trapping mouse scrolling
@@ -189,9 +189,9 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
         firstName: 'Nilesh',
         lastName: 'Somnawane',
         status: 'ONLINE',
-        lat: 28.5921,
-        lng: 77.0460,
-        territory: 'Delhi NCR (Dwarka)',
+        lat: 28.6090,
+        lng: 76.9855,
+        territory: 'Najafgarh, Delhi',
         currentCustomer: destinationPlace?.name || null,
       }];
 

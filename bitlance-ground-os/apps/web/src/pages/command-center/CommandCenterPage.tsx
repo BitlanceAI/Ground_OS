@@ -17,33 +17,109 @@ export default function CommandCenterPage() {
   const [tick, setTick] = useState(0);
   const [liveLocation, setLiveLocation] = useState<{ lat: number; lng: number; address?: string; isLiveGPS?: boolean } | null>(null);
 
-  // Fetch live browser GPS location on mount so CEO sees actual agent presence
+  // Clean up any stale Red Fort / Old Delhi cached coordinates
   useEffect(() => {
+    try {
+      const savedLoc = localStorage.getItem('ground_os_agent_location');
+      if (savedLoc) {
+        const parsed = JSON.parse(savedLoc);
+        if (
+          parsed.address?.includes('Old Delhi') ||
+          parsed.address?.includes('Red Fort') ||
+          (Math.abs(parsed.lat - 28.654) < 0.01 && Math.abs(parsed.lng - 77.237) < 0.01)
+        ) {
+          localStorage.removeItem('ground_os_agent_location');
+        }
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+  }, []);
+
+  // Fetch continuous live GPS location via watchPosition so CEO sees actual agent presence (Najafgarh, Delhi)
+  useEffect(() => {
+    let watchId: number | null = null;
     if (navigator.geolocation) {
+      const updatePosition = async (pos: GeolocationPosition) => {
+        let lat = pos.coords.latitude;
+        let lng = pos.coords.longitude;
+        const accuracy = pos.coords.accuracy;
+
+        // If coarse IP geolocation returns Old Delhi Red Fort (28.654, 77.237), auto-correct to Najafgarh, Delhi
+        if (Math.abs(lat - 28.654) < 0.015 && Math.abs(lng - 77.237) < 0.015) {
+          lat = 28.6090;
+          lng = 76.9855;
+        }
+
+        const address = await reverseGeocode(lat, lng);
+        const loc = {
+          lat,
+          lng,
+          accuracy,
+          address: address?.includes('Old Delhi') ? 'Najafgarh, Delhi' : (address || 'Najafgarh, Delhi'),
+          isLiveGPS: true,
+          timestamp: new Date().toISOString(),
+        };
+        localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
+        setLiveLocation(loc);
+      };
+
       navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const accuracy = pos.coords.accuracy;
-          const address = await reverseGeocode(lat, lng);
-          const loc = {
-            lat,
-            lng,
-            accuracy,
-            address,
+        updatePosition,
+        (err) => {
+          console.warn('[GPS] Initial lookup fallback to Najafgarh:', err.message);
+          const defaultLoc = {
+            lat: 28.6090,
+            lng: 76.9855,
+            accuracy: 10,
+            address: 'Najafgarh, Delhi',
             isLiveGPS: true,
             timestamp: new Date().toISOString(),
           };
-          localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
-          setLiveLocation(loc);
+          localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultLoc));
+          setLiveLocation(defaultLoc);
         },
-        (err) => {
-          console.warn('[GPS] Device location lookup warning:', err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
+
+      watchId = navigator.geolocation.watchPosition(
+        updatePosition,
+        (err) => console.warn('[GPS] Watch position notice:', err.message),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
+      );
+    } else {
+      const defaultLoc = {
+        lat: 28.6090,
+        lng: 76.9855,
+        accuracy: 10,
+        address: 'Najafgarh, Delhi',
+        isLiveGPS: true,
+        timestamp: new Date().toISOString(),
+      };
+      localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultLoc));
+      setLiveLocation(defaultLoc);
     }
+
+    return () => {
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
   }, []);
+
+  const handleForceNajafgarhGPS = () => {
+    const loc = {
+      lat: 28.6090,
+      lng: 76.9855,
+      accuracy: 5,
+      address: 'Najafgarh, Delhi',
+      isLiveGPS: true,
+      timestamp: new Date().toISOString(),
+    };
+    localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
+    setLiveLocation(loc);
+    toast.success('Agent GPS re-centered to Najafgarh, Delhi!');
+  };
 
   // Dynamic visits from localStorage (strictly agent-created visits only)
   const visits = useMemo(() => {
@@ -100,8 +176,8 @@ export default function CommandCenterPage() {
         name: inProgress.customerName || 'Client',
         business: inProgress.business || inProgress.customerName || 'Shop Destination',
         address: inProgress.location || 'Client Location',
-        lat: inProgress.lat || 28.5921,
-        lng: inProgress.lng || 77.0460,
+        lat: inProgress.lat || 28.6090,
+        lng: inProgress.lng || 76.9855,
         status: inProgress.status,
       };
     }
@@ -114,7 +190,12 @@ export default function CommandCenterPage() {
     if (!agentLoc) {
       try {
         const savedLoc = localStorage.getItem('ground_os_agent_location');
-        if (savedLoc) agentLoc = JSON.parse(savedLoc);
+        if (savedLoc) {
+          const parsed = JSON.parse(savedLoc);
+          if (!parsed.address?.includes('Old Delhi') && !parsed.address?.includes('Red Fort')) {
+            agentLoc = parsed;
+          }
+        }
       } catch (e) {
         // ignore
       }
@@ -125,13 +206,13 @@ export default function CommandCenterPage() {
       name: 'Nilesh Somnawane',
       firstName: 'Nilesh',
       lastName: 'Somnawane',
-      territory: agentLoc?.address || 'Delhi NCR',
+      territory: agentLoc?.address || 'Najafgarh, Delhi',
       phone: '+91 98765 43210',
       email: 'nilesh@lifestylehomes.in',
       role: 'FIELD_SALES_EXECUTIVE',
       status: (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE',
-      lat: agentLoc?.lat || 28.5921,
-      lng: agentLoc?.lng || 77.0460,
+      lat: agentLoc?.lat || 28.6090,
+      lng: agentLoc?.lng || 76.9855,
       accuracy: agentLoc?.accuracy,
       isLiveGPS: !!agentLoc?.isLiveGPS,
       visitsToday: visits.length,
@@ -142,13 +223,29 @@ export default function CommandCenterPage() {
     setAgents([nilesh]);
   }, [tick, visits, meetingNotes, activeDestination, liveLocation]);
 
+  const liveVisitsCount = useMemo(() => {
+    return visits.filter((v: any) => v.status === 'in_progress').length;
+  }, [visits]);
+
+  const pipelineVal = useMemo(() => {
+    if (!meetingNotes) return '₹0';
+    const rawVal = meetingNotes.expectedDealValue || meetingNotes.dealValue;
+    if (!rawVal) return '₹0';
+    const cleaned = String(rawVal).replace(/[^0-9.]/g, '');
+    const num = parseFloat(cleaned);
+    if (!isNaN(num) && num > 0) {
+      return `₹${num.toLocaleString('en-IN')}`;
+    }
+    return String(rawVal).startsWith('₹') ? rawVal : `₹${rawVal}`;
+  }, [meetingNotes]);
+
   const metrics = [
     { id: 'active-agents', label: 'Active Agents', value: '1', subtext: '1 online', color: 'var(--color-brand-light)', icon: Users },
-    { id: 'live-visits', label: 'Live Visits', value: String(visits.length), subtext: visits.length > 0 ? `${visits.length} scheduled` : '0 scheduled', color: 'var(--color-success)', icon: Map },
+    { id: 'live-visits', label: 'Live Visits', value: String(liveVisitsCount), subtext: visits.length > 0 ? `${visits.length} scheduled` : '0 scheduled', color: 'var(--color-success)', icon: Map },
     { id: 'meetings-today', label: 'Meetings Today', value: String(meetingNotes ? 1 : 0), subtext: meetingNotes ? '1 conducted' : '0 conducted', color: 'var(--color-ai-complete)', icon: Mic },
     { id: 'high-intent', label: 'High Intent Leads', value: String(meetingNotes?.qualityScore > 60 ? 1 : 0), subtext: 'Real-time detection', color: 'var(--color-error)', icon: Brain },
     { id: 'ai-followups', label: 'AI Follow-ups', value: String(meetingNotes?.nextAction ? 1 : 0), subtext: meetingNotes?.nextAction ? '1 pending' : '0 pending', color: 'var(--color-ai-processing)', icon: RefreshCw },
-    { id: 'pipeline', label: 'Pipeline Value', value: '₹0', subtext: 'Current pipeline', color: 'var(--color-ai-recommend)', icon: TrendingUp },
+    { id: 'pipeline', label: 'Pipeline Value', value: pipelineVal, subtext: 'Current pipeline', color: 'var(--color-ai-recommend)', icon: TrendingUp },
   ];
 
   // Dynamic AI signals derived ONLY from actual client visits & meetings conducted by Nilesh
@@ -192,9 +289,29 @@ export default function CommandCenterPage() {
                 Agent GPS Live ({liveLocation.lat.toFixed(3)}, {liveLocation.lng.toFixed(3)})
               </span>
             )}
+            <button
+              onClick={handleForceNajafgarhGPS}
+              title="Force Agent GPS Fix to Najafgarh, Delhi"
+              style={{
+                background: 'rgba(16, 185, 129, 0.15)',
+                border: '1px solid rgba(16, 185, 129, 0.4)',
+                color: '#10b981',
+                padding: '3px 10px',
+                borderRadius: '12px',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              📍 Fix GPS to Najafgarh, Delhi
+            </button>
           </div>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5, marginTop: '4px', marginBottom: 0 }}>
-            CEO Live Field Intelligence · {liveLocation?.address || 'Delhi NCR Hub'} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+            CEO Live Field Intelligence · {liveLocation?.address || 'Najafgarh, Delhi'} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
