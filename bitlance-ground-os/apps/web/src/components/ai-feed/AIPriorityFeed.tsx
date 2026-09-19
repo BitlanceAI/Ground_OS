@@ -43,6 +43,47 @@ interface Props {
 export default function AIPriorityFeed({ items }: Props) {
   const navigate = useNavigate();
 
+  if (!items || items.length === 0) {
+    return (
+      <div
+        className="card"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '40px 20px',
+          textAlign: 'center',
+          flex: 1,
+          minHeight: 280,
+          background: 'rgba(13, 20, 36, 0.4)',
+          border: '1px dashed var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+        }}
+      >
+        <div style={{
+          width: 44,
+          height: 44,
+          borderRadius: 'var(--radius-full)',
+          background: 'rgba(99, 102, 241, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: '12px',
+          color: 'var(--color-brand-light)',
+        }}>
+          <Brain size={22} />
+        </div>
+        <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text-primary)', marginBottom: '6px' }}>
+          No Active AI Signals
+        </div>
+        <div style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', maxWidth: 280, lineHeight: 1.5 }}>
+          Real-time AI signals, high-intent lead alerts, and follow-up risks will appear here automatically when field meetings are recorded.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{
       display: 'flex',

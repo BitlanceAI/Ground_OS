@@ -640,18 +640,16 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 .flex { display: flex; }
 
 .map-tiles {
+  /* Basemap tiles */
+}
+
+.google-map-tiles {
   filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
 }
 
 .leaflet-tile {
-  outline: 1px solid transparent;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
-  transform-style: preserve-3d;
-}
-
-.leaflet-tile-container {
-  overflow: hidden;
 }
 .flex-col { flex-direction: column; }
 .items-center { align-items: center; }
