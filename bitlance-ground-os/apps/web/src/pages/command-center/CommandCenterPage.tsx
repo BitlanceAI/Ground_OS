@@ -3,16 +3,47 @@ import { useNavigate } from 'react-router-dom';
 import {
   Users, Map, Mic, Brain, TrendingUp,
   ChevronRight, RefreshCw, Calendar, Plus, ExternalLink,
-  Clock, MapPin
+  Clock, MapPin, Trash2, Navigation, ShieldCheck
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { agentsApi } from '../../lib/api';
 import LiveAgentMap from '../../components/map/LiveAgentMap';
 import AIPriorityFeed from '../../components/ai-feed/AIPriorityFeed';
+import { reverseGeocode } from '../../lib/geocoder';
 
 export default function CommandCenterPage() {
   const navigate = useNavigate();
   const [agents, setAgents] = useState<any[]>([]);
   const [tick, setTick] = useState(0);
+  const [liveLocation, setLiveLocation] = useState<{ lat: number; lng: number; address?: string; isLiveGPS?: boolean } | null>(null);
+
+  // Fetch live browser GPS location on mount so CEO sees actual agent presence
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const accuracy = pos.coords.accuracy;
+          const address = await reverseGeocode(lat, lng);
+          const loc = {
+            lat,
+            lng,
+            accuracy,
+            address,
+            isLiveGPS: true,
+            timestamp: new Date().toISOString(),
+          };
+          localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
+          setLiveLocation(loc);
+        },
+        (err) => {
+          console.warn('[GPS] Device location lookup warning:', err.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+      );
+    }
+  }, []);
 
   // Dynamic visits from localStorage (strictly agent-created visits only)
   const visits = useMemo(() => {
@@ -28,63 +59,65 @@ export default function CommandCenterPage() {
     return [];
   }, [tick]);
 
-  // Dynamic meeting notes from localStorage
+  // Dynamic meeting notes from localStorage (purges old mock notes containing Deepgram)
   const meetingNotes = useMemo(() => {
     try {
       const saved = localStorage.getItem('meeting_notes_m1');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        if (saved.includes('Deepgram Nova-2') || saved.includes('Discussion conducted at Sreejal Jewellers with Uttam')) {
+          localStorage.removeItem('meeting_notes_m1');
+          return null;
+        }
+        return JSON.parse(saved);
+      }
     } catch (e) {
       console.error(e);
     }
     return null;
   }, [tick]);
 
-  // Active destination shop/company tracking
+  // Active destination shop/company tracking (strictly only when a visit is actively IN_PROGRESS)
   const activeDestination = useMemo(() => {
     try {
       const trackingRaw = localStorage.getItem('ground_os_active_visit_tracking');
       if (trackingRaw) {
         const t = JSON.parse(trackingRaw);
-        if (t && (t.business || t.name)) {
-          // Validate & correct Delhi / Dwarka coordinates if previously defaulted to Mumbai
-          const addr = (t.address || '').toLowerCase();
-          if ((addr.includes('delhi') || addr.includes('dwarka')) && t.lat < 25) {
-            t.lat = 28.5921;
-            t.lng = 77.0460;
-            try {
-              localStorage.setItem('ground_os_active_visit_tracking', JSON.stringify(t));
-            } catch (err) {}
+        // Only active if explicitly marked IN_PROGRESS and corresponds to an active visit
+        if (t && (t.business || t.name) && t.status === 'IN_PROGRESS') {
+          const matchingVisit = visits.find(v => v.id === t.visitId);
+          if (matchingVisit && matchingVisit.status === 'in_progress') {
+            return t;
           }
-          return t;
         }
       }
     } catch (e) {
       console.error(e);
     }
-    const inProgress = visits.find(v => v.status === 'in_progress') || visits[0];
+    const inProgress = visits.find(v => v.status === 'in_progress');
     if (inProgress) {
-      const addr = (inProgress.location || '').toLowerCase();
-      const isDelhi = addr.includes('delhi') || addr.includes('dwarka');
       return {
+        visitId: inProgress.id,
         name: inProgress.customerName || 'Client',
         business: inProgress.business || inProgress.customerName || 'Shop Destination',
-        address: inProgress.location || 'Dwarka Delhi',
-        lat: inProgress.lat || (isDelhi ? 28.5921 : 28.5921),
-        lng: inProgress.lng || (isDelhi ? 77.0460 : 77.0460),
+        address: inProgress.location || 'Client Location',
+        lat: inProgress.lat || 28.5921,
+        lng: inProgress.lng || 77.0460,
         status: inProgress.status,
       };
     }
     return null;
   }, [visits, tick]);
 
-  // Ensure solely Nilesh Somnawane exists as the 1 active agent in Delhi
+  // Sole Field Agent: Nilesh Somnawane with real GPS coordinates
   useEffect(() => {
-    let agentLoc: any = null;
-    try {
-      const savedLoc = localStorage.getItem('ground_os_agent_location');
-      if (savedLoc) agentLoc = JSON.parse(savedLoc);
-    } catch (e) {
-      // ignore
+    let agentLoc: any = liveLocation;
+    if (!agentLoc) {
+      try {
+        const savedLoc = localStorage.getItem('ground_os_agent_location');
+        if (savedLoc) agentLoc = JSON.parse(savedLoc);
+      } catch (e) {
+        // ignore
+      }
     }
 
     const nilesh = {
@@ -92,20 +125,22 @@ export default function CommandCenterPage() {
       name: 'Nilesh Somnawane',
       firstName: 'Nilesh',
       lastName: 'Somnawane',
-      territory: 'Delhi NCR (Dwarka)',
+      territory: agentLoc?.address || 'Delhi NCR',
       phone: '+91 98765 43210',
       email: 'nilesh@lifestylehomes.in',
       role: 'FIELD_SALES_EXECUTIVE',
       status: (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE',
       lat: agentLoc?.lat || 28.5921,
       lng: agentLoc?.lng || 77.0460,
+      accuracy: agentLoc?.accuracy,
+      isLiveGPS: !!agentLoc?.isLiveGPS,
       visitsToday: visits.length,
       meetingsToday: meetingNotes ? 1 : 0,
       score: meetingNotes?.qualityScore || 88,
     };
 
     setAgents([nilesh]);
-  }, [tick, visits, meetingNotes, activeDestination]);
+  }, [tick, visits, meetingNotes, activeDestination, liveLocation]);
 
   const metrics = [
     { id: 'active-agents', label: 'Active Agents', value: '1', subtext: '1 online', color: 'var(--color-brand-light)', icon: Users },
@@ -145,24 +180,50 @@ export default function CommandCenterPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '100%', paddingBottom: '48px' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h1 style={{ fontFamily: 'var(--font-head)', fontSize: '1.5rem', fontWeight: 800, marginBottom: '4px' }}>
-            Command Center
-          </h1>
-          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5 }}>
-            CEO Live Field Intelligence · Delhi NCR Hub · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{ fontFamily: 'var(--font-head)', fontSize: '1.5rem', fontWeight: 800, margin: 0 }}>
+              Command Center
+            </h1>
+            {liveLocation?.isLiveGPS && (
+              <span className="badge badge-success" style={{ gap: '5px', fontSize: '11px', padding: '3px 8px' }} title={`Live GPS: ${liveLocation.lat.toFixed(5)}, ${liveLocation.lng.toFixed(5)}`}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 6px #10b981' }}></span>
+                Agent GPS Live ({liveLocation.lat.toFixed(3)}, {liveLocation.lng.toFixed(3)})
+              </span>
+            )}
+          </div>
+          <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5, marginTop: '4px', marginBottom: 0 }}>
+            CEO Live Field Intelligence · {liveLocation?.address || 'Delhi NCR Hub'} · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
-        <button
-          className="btn btn-ghost"
-          style={{ gap: '6px' }}
-          onClick={() => setTick(t => t + 1)}
-          title="Refresh dashboard data"
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            className="btn btn-ghost"
+            style={{ gap: '6px', color: 'var(--color-text-muted)', fontSize: '0.8125rem' }}
+            onClick={() => {
+              localStorage.removeItem('ground_os_agent_visits');
+              localStorage.removeItem('ground_os_active_visit_tracking');
+              localStorage.removeItem('meeting_notes_m1');
+              localStorage.removeItem('meeting_transcript_m1');
+              setTick(t => t + 1);
+              toast.success('Clean slate! All demo visits and mock notes wiped.');
+            }}
+            title="Wipe demo data and start 100% clean"
+          >
+            <Trash2 size={13} />
+            Clear Demo Data
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ gap: '6px' }}
+            onClick={() => setTick(t => t + 1)}
+            title="Refresh dashboard data"
+          >
+            <RefreshCw size={14} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* CEO Live Notification Alert Banner */}

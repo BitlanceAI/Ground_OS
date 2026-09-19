@@ -6,7 +6,7 @@ import {
   Trash2, X, AlertCircle, Sparkles, Navigation, Check
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { geocodeAddress } from '../../lib/geocoder';
+import { geocodeAddress, searchPlaces, getCurrentDeviceLocation, PlaceSuggestion } from '../../lib/geocoder';
 
 export interface Visit {
   id: string;
@@ -99,8 +99,56 @@ export default function VisitsListPage() {
   const [priority, setPriority] = useState<'HIGH' | 'MEDIUM' | 'NORMAL'>('HIGH');
   const [notes, setNotes] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+  const [isDetectingGPS, setIsDetectingGPS] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const remainingCount = visits.filter(v => v.status === 'upcoming' && !(meetingNotes && (meetingNotes.businessName === v.business || meetingNotes.businessOwnerName === v.customerName))).length;
+
+  const handleLocationInputChange = async (val: string) => {
+    setLocation(val);
+    setSelectedCoords(null);
+    if (val.trim().length >= 2) {
+      setIsSearchingPlaces(true);
+      setShowSuggestions(true);
+      try {
+        const res = await searchPlaces(val);
+        setSuggestions(res);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsSearchingPlaces(false);
+      }
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSuggestion = (item: PlaceSuggestion) => {
+    setLocation(item.displayName);
+    setSelectedCoords({ lat: item.lat, lng: item.lng });
+    setShowSuggestions(false);
+    toast.success(`Location pinned on map: ${item.name || item.displayName}`);
+  };
+
+  const handleUseCurrentGPS = async () => {
+    setIsDetectingGPS(true);
+    try {
+      const loc = await getCurrentDeviceLocation();
+      setLocation(loc.address);
+      setSelectedCoords({ lat: loc.lat, lng: loc.lng });
+      localStorage.setItem('ground_os_agent_location', JSON.stringify({ ...loc, isLiveGPS: true }));
+      window.dispatchEvent(new Event('storage'));
+      toast.success(`Agent GPS locked: ${loc.address}`);
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not fetch device GPS');
+    } finally {
+      setIsDetectingGPS(false);
+    }
+  };
 
   const handleCreateVisit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +158,11 @@ export default function VisitsListPage() {
     }
 
     setIsGeocoding(true);
-    const coords = await geocodeAddress(location);
+    let coords = selectedCoords;
+    if (!coords) {
+      const resolved = await geocodeAddress(location, business);
+      coords = { lat: resolved.lat, lng: resolved.lng };
+    }
     setIsGeocoding(false);
 
     const newVisit: Visit = {
@@ -130,13 +182,15 @@ export default function VisitsListPage() {
 
     setVisits(prev => [newVisit, ...prev]);
     setIsPlanModalOpen(false);
-    toast.success(`Visit to ${customerName} at ${business} scheduled in ${location.trim()}!`);
+    toast.success(`Visit to ${customerName} (${business}) mapped at ${location.trim()}!`);
 
     // Reset fields
     setCustomerName('');
     setBusiness('');
     setPhone('');
     setLocation('');
+    setSelectedCoords(null);
+    setSuggestions([]);
     setTime('17:30 PM');
     setNotes('');
   };
@@ -441,18 +495,92 @@ export default function VisitsListPage() {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    <MapPin size={14} /> Exact Location / Area *
-                  </label>
+                <div style={{ position: 'relative' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', margin: 0 }}>
+                      <MapPin size={14} /> Exact Location / Area *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleUseCurrentGPS}
+                      disabled={isDetectingGPS}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-brand-light)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontWeight: 600,
+                        padding: 0
+                      }}
+                      title="Fetch my real current GPS device location"
+                    >
+                      <Navigation size={12} /> {isDetectingGPS ? 'Detecting...' : 'Use My GPS'}
+                    </button>
+                  </div>
                   <input 
                     type="text" 
                     required 
-                    placeholder="e.g. Dwarka Delhi" 
+                    placeholder="Search place, street or area..." 
                     value={location}
-                    onChange={(e) => setLocation(e.target.value)}
+                    onChange={(e) => handleLocationInputChange(e.target.value)}
+                    onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem' }}
                   />
+
+                  {/* Verified Pin Tag */}
+                  {selectedCoords && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', marginTop: '6px', fontSize: '0.75rem', color: 'var(--color-success)' }}>
+                      <CheckCircle2 size={13} />
+                      <span>Verified Pin: {selectedCoords.lat.toFixed(4)}, {selectedCoords.lng.toFixed(4)}</span>
+                    </div>
+                  )}
+
+                  {/* Autocomplete Suggestions Dropdown */}
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: '4px',
+                      background: '#0d1424',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)',
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+                      zIndex: 200,
+                      maxHeight: '180px',
+                      overflowY: 'auto'
+                    }}>
+                      {suggestions.map((s, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => handleSelectSuggestion(s)}
+                          style={{
+                            padding: '9px 12px',
+                            cursor: 'pointer',
+                            fontSize: '0.8125rem',
+                            borderBottom: idx < suggestions.length - 1 ? '1px solid rgba(255,255,255,0.06)' : 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            color: '#e2e8f0',
+                            transition: 'background 0.15s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99,102,241,0.15)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <MapPin size={13} color="var(--color-brand-light)" style={{ flexShrink: 0 }} />
+                          <div style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <strong style={{ color: '#fff' }}>{s.name}</strong> · <span style={{ color: '#94a3b8' }}>{s.displayName}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div>

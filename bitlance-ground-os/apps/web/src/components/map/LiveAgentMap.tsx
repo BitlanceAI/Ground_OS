@@ -226,7 +226,7 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
                   font-size:11px;color:#fff;font-weight:600;
                   font-family:Inter,sans-serif;white-space:nowrap;
                   box-shadow:0 2px 8px rgba(0,0,0,0.5);
-                ">${agent.firstName} (Agent)</div>
+                ">${(agent as any).isLiveGPS ? '📍 ' : ''}${agent.firstName} (Agent)</div>
               </div>
             `,
             iconSize: [40, 64],
@@ -238,7 +238,12 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
           marker.bindPopup(`
             <div style="background:#0d1424;color:#f1f5f9;border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px;min-width:180px;font-family:Inter,sans-serif;">
               <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${agent.firstName} ${agent.lastName}</div>
-              <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Territory: ${agent.territory}</div>
+              ${(agent as any).isLiveGPS ? `
+                <div style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3);margin-bottom:8px;">
+                  ● LIVE DEVICE GPS VERIFIED
+                </div>
+              ` : ''}
+              <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Location: ${agent.territory}</div>
               <div style="display:flex;align-items:center;gap:6px;">
                 <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color};"></div>
                 <span style="font-size:11px;color:${color};font-weight:600;">${agent.status.replace('_', ' ')}</span>
@@ -252,12 +257,6 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
       if (destinationPlace) {
         let destLat = destinationPlace.lat;
         let destLng = destinationPlace.lng;
-        const addrLower = (destinationPlace.address || '').toLowerCase();
-        if ((addrLower.includes('delhi') || addrLower.includes('dwarka')) && destLat < 25) {
-          destLat = 28.5921;
-          destLng = 77.0460;
-        }
-
         boundsPoints.push([destLat, destLng]);
 
         const placeIcon = L.divIcon({
@@ -286,7 +285,7 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
           iconAnchor: [80, 42],
         });
 
-        const destMarker = L.marker([destinationPlace.lat, destinationPlace.lng], { icon: placeIcon }).addTo(markersLayerRef.current);
+        const destMarker = L.marker([destLat, destLng], { icon: placeIcon }).addTo(markersLayerRef.current);
 
         destMarker.bindPopup(`
           <div style="background:#0d1424;color:#f1f5f9;border:1px solid rgba(244,63,94,0.4);border-radius:10px;padding:14px;min-width:220px;font-family:Inter,sans-serif;">
