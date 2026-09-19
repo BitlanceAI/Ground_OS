@@ -131,7 +131,7 @@ class OpenAIProvider implements LLMProvider {
 
   async complete({ system, prompt }: { system: string; prompt: string }): Promise<string> {
     const response = await this.client.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: prompt },
@@ -142,7 +142,7 @@ class OpenAIProvider implements LLMProvider {
 
   async structuredComplete<T>({ system, prompt, schema }: { system: string; prompt: string; schema: string }): Promise<T> {
     const response = await this.client.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       response_format: { type: 'json_object' },
       messages: [
         {
