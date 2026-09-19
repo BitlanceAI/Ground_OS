@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mic, Square, Play, Upload, CheckCircle2, ChevronRight } from 'lucide-react';
+import { Mic, Square, Play, Upload, CheckCircle2, ChevronRight, User, Building, FileText } from 'lucide-react';
 
-type Phase = 'travel' | 'arrive' | 'meeting' | 'complete';
+type Phase = 'arrive' | 'meeting' | 'complete';
 
 export default function MeetingModePage() {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<Phase>('travel');
+  const [phase, setPhase] = useState<Phase>('arrive');
   const [elapsed, setElapsed] = useState(0);
   const [meetingActive, setMeetingActive] = useState(false);
+  
+  const [businessName, setBusinessName] = useState('Rajesh Electronics');
+  const [businessOwnerName, setBusinessOwnerName] = useState('Rajesh Kumar');
+  const [purposeOfVisit, setPurposeOfVisit] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     let t: any;
@@ -21,18 +26,33 @@ export default function MeetingModePage() {
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
   const phases = [
-    { id: 'travel', label: 'En Route', done: phase !== 'travel' },
-    { id: 'arrive', label: 'Arrived & Verified', done: ['meeting', 'complete'].includes(phase) },
+    { id: 'arrive', label: 'Arrived & Details', done: ['meeting', 'complete'].includes(phase) },
     { id: 'meeting', label: 'Meeting', done: phase === 'complete' },
     { id: 'complete', label: 'Complete', done: false },
   ];
+
+  const handleStartMeeting = async () => {
+    setIsSubmitting(true);
+    try {
+      await fetch(`http://localhost:4000/api/v1/meetings/m1/pre-start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessName, businessOwnerName, purposeOfVisit })
+      });
+    } catch (e) {
+      console.error(e);
+    }
+    setIsSubmitting(false);
+    setPhase('meeting'); 
+    setMeetingActive(true);
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 600, margin: '0 auto' }}>
       {/* Header */}
       <div>
         <h1 style={{ fontSize: '1.5rem', marginBottom: '4px' }}>Meeting Mode</h1>
-        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Visit: Rajesh Electronics · Aman Sharma</p>
+        <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>Visit: {businessName} · {businessOwnerName}</p>
       </div>
 
       {/* Phase Progress */}
@@ -67,33 +87,61 @@ export default function MeetingModePage() {
       </div>
 
       {/* Main Action Card */}
-      {phase === 'travel' && (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🗺️</div>
-          <h3 style={{ marginBottom: '8px' }}>Heading to Rajesh Electronics</h3>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: '24px', fontSize: '0.85rem' }}>
-            Shop 14, Andheri West Market · 2.3 km away
-          </p>
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}
-            onClick={() => setPhase('arrive')}>
-            I've Arrived at Location
-          </button>
-        </div>
-      )}
-
       {phase === 'arrive' && (
-        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📍</div>
-          <h3 style={{ marginBottom: '8px' }}>Verify Your Location</h3>
-          <p style={{ color: 'var(--color-text-muted)', marginBottom: '8px', fontSize: '0.85rem' }}>
-            GPS will confirm you're within 50m of the destination
-          </p>
-          <div className="badge badge-success" style={{ margin: '0 auto 24px', display: 'inline-flex' }}>
-            ✓ Location Verified — 12m accuracy
+        <div className="card" style={{ padding: '32px 24px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📍</div>
+            <h3 style={{ marginBottom: '8px' }}>Location Verified</h3>
+            <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
+              Please confirm the business details before starting the meeting recording.
+            </p>
           </div>
-          <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}
-            onClick={() => { setPhase('meeting'); setMeetingActive(true); }}>
-            Start Meeting & Recording
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '32px' }}>
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                <Building size={14} /> Business Name
+              </label>
+              <input 
+                type="text" 
+                value={businessName} 
+                onChange={(e) => setBusinessName(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'white' }}
+              />
+            </div>
+            
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                <User size={14} /> Business Owner Name
+              </label>
+              <input 
+                type="text" 
+                value={businessOwnerName} 
+                onChange={(e) => setBusinessOwnerName(e.target.value)}
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'white' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+                <FileText size={14} /> Purpose of Visit
+              </label>
+              <textarea 
+                value={purposeOfVisit} 
+                onChange={(e) => setPurposeOfVisit(e.target.value)}
+                placeholder="E.g., Pitching new 3BHK inventory, discussing pricing..."
+                style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'white', minHeight: '80px', fontFamily: 'inherit' }}
+              />
+            </div>
+          </div>
+
+          <button 
+            className="btn btn-primary" 
+            style={{ width: '100%', justifyContent: 'center', padding: '14px' }}
+            onClick={handleStartMeeting}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? 'Saving...' : 'Start Meeting & Recording'}
           </button>
         </div>
       )}
@@ -133,10 +181,10 @@ export default function MeetingModePage() {
 
       {phase === 'complete' && (
         <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
-          <CheckCircle2 size={48} color="var(--color-success)" style={{ marginBottom: '16px' }} />
+          <CheckCircle2 size={48} color="var(--color-success)" style={{ margin: '0 auto 16px' }} />
           <h3 style={{ marginBottom: '8px' }}>Meeting Complete!</h3>
           <p style={{ color: 'var(--color-text-muted)', marginBottom: '8px', fontSize: '0.85rem' }}>
-            Duration: {formatTime(elapsed)} · Recording uploaded
+            Duration: {formatTime(elapsed)} · Summary sent to {businessOwnerName} via WhatsApp
           </p>
           <div className="ai-state ai-state-processing" style={{ margin: '16px auto', display: 'inline-flex' }}>
             AI processing transcript...
@@ -152,26 +200,6 @@ export default function MeetingModePage() {
           </div>
         </div>
       )}
-
-      {/* Customer Context */}
-      <div className="card">
-        <h3 style={{ marginBottom: '12px' }}>Customer Context</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {[
-            ['Customer', 'Rajesh Kumar'],
-            ['Business', 'Rajesh Electronics'],
-            ['Lead Score', '86 · HIGH'],
-            ['Requirement', '3BHK, ₹80L–₹1Cr'],
-            ['Last Contact', 'WhatsApp today'],
-            ['Objection (prev)', 'None'],
-          ].map(([l, v]) => (
-            <div key={l}>
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{l}</div>
-              <div style={{ fontSize: '0.85rem', color: 'var(--color-text-primary)', marginTop: '2px' }}>{v}</div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

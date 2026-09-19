@@ -8,6 +8,7 @@ import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { aiOrchestrator } from '../../orchestrator/ai.orchestrator';
 import { eventBus } from '../../events/event-bus';
 import { getStorageProvider } from '../../adapters/storage.adapter';
+import { getWhatsAppProvider } from '../../adapters/whatsapp.adapter';
 import prisma from '@ground-os/database';
 
 const router = Router();
@@ -123,6 +124,39 @@ router.get('/:meetingId', async (req: AuthenticatedRequest, res: Response) => {
     console.warn('[Meetings] DB unavailable, using mock:', (err as Error).message);
     const meeting = mockMeetings.find(m => m.id === req.params.meetingId) || mockMeetings[0];
     return res.json({ success: true, data: meeting, _mock: true });
+  }
+});
+
+// ── POST /api/v1/meetings/:meetingId/pre-start ────────────
+router.post('/:meetingId/pre-start', async (req: AuthenticatedRequest, res: Response) => {
+  const { businessName, businessOwnerName, purposeOfVisit } = req.body;
+  try {
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: req.params.meetingId }
+    });
+    if (!meeting) return res.status(404).json({ success: false, message: 'Meeting not found' });
+
+    if (businessName !== undefined || businessOwnerName !== undefined) {
+      await prisma.customer.update({
+        where: { id: meeting.customerId },
+        data: { 
+          ...(businessName !== undefined && { businessName }),
+          ...(businessOwnerName !== undefined && { businessOwnerName })
+        }
+      });
+    }
+
+    if (purposeOfVisit !== undefined) {
+      await prisma.meeting.update({
+        where: { id: req.params.meetingId },
+        data: { purposeOfVisit }
+      });
+    }
+
+    return res.json({ success: true, message: 'Pre-meeting details saved' });
+  } catch (err) {
+    console.warn('[Meetings] DB update failed:', (err as Error).message);
+    return res.json({ success: true, _mock: true });
   }
 });
 
@@ -259,6 +293,15 @@ router.post('/:meetingId/complete-and-analyze', async (req: AuthenticatedRequest
     leadScore: insight.qualityScore,
     intentLevel: insight.intentLevel,
   });
+
+  try {
+    const provider = getWhatsAppProvider();
+    const customerPhone = (meeting as any).customer?.phone || '+1234567890';
+    const msg = `Hi ${meetingData.customerName},\n\nThank you for the meeting today. Here's a brief summary of our discussion:\n\n${insight.summary}\n\nBest,\n${meetingData.agentName}`;
+    await provider.sendMessage(customerPhone, msg);
+  } catch (err) {
+    console.warn('[Meetings] WhatsApp send failed:', (err as Error).message);
+  }
 
   return res.json({ success: true, data: { ...meeting, status: 'ANALYSED', insight } });
 });

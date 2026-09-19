@@ -166,6 +166,7 @@ model Customer {
   email          String?
   type           CustomerType @default(SHOP_OWNER)
   businessName   String?
+  businessOwnerName String?
   address        String?
   latitude       Float?
   longitude      Float?
@@ -365,6 +366,7 @@ model Meeting {
   durationSeconds  Int?
   qualityScore     Int?
   notes            String?
+  purposeOfVisit   String?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
