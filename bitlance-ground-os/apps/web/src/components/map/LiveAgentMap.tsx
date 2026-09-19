@@ -13,8 +13,19 @@ interface Agent {
   currentCustomer: string | null;
 }
 
+export interface DestinationPlace {
+  name: string;
+  business: string;
+  address: string;
+  lat: number;
+  lng: number;
+  type?: string;
+  status?: string;
+}
+
 interface LiveAgentMapProps {
   agents: Agent[];
+  destinationPlace?: DestinationPlace | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -27,7 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 type MapTheme = 'dark' | 'satellite' | 'streets';
 
-export default function LiveAgentMap({ agents }: LiveAgentMapProps) {
+export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const tileLayerRef = useRef<any>(null);
@@ -155,7 +166,7 @@ export default function LiveAgentMap({ agents }: LiveAgentMapProps) {
     });
   }, [activeTheme, mapsApiKey]);
 
-  // Update markers when agents change
+  // Update markers and destination when agents or destinationPlace change
   useEffect(() => {
     if (!mapInstanceRef.current || !markersLayerRef.current) return;
 
@@ -163,62 +174,136 @@ export default function LiveAgentMap({ agents }: LiveAgentMapProps) {
       if (!markersLayerRef.current) return;
       markersLayerRef.current.clearLayers();
 
-      if (!agents || agents.length === 0) return;
+      const boundsPoints: [number, number][] = [];
 
-      agents.forEach(agent => {
-        const color = STATUS_COLORS[agent.status] || '#64748b';
+      // 1. Render Agent Markers
+      if (agents && agents.length > 0) {
+        agents.forEach(agent => {
+          boundsPoints.push([agent.lat, agent.lng]);
+          const color = STATUS_COLORS[agent.status] || '#64748b';
 
-        const icon = L.divIcon({
-          className: '',
-          html: `
-            <div style="position:relative;display:flex;flex-direction:column;align-items:center">
-              <div style="
-                width:36px;height:36px;border-radius:50%;
-                background:${color}22;
-                border:2px solid ${color};
-                display:flex;align-items:center;justify-content:center;
-                font-family:Inter,sans-serif;font-size:11px;font-weight:700;
-                color:${color};position:relative;
-              ">
-                ${agent.firstName?.[0] || 'A'}${agent.lastName?.[0] || ''}
-                ${agent.status === 'IN_MEETING' ? `
+          const icon = L.divIcon({
+            className: '',
+            html: `
+              <div style="position:relative;display:flex;flex-direction:column;align-items:center">
+                <div style="
+                  width:38px;height:38px;border-radius:50%;
+                  background:${color}22;
+                  border:2px solid ${color};
+                  display:flex;align-items:center;justify-content:center;
+                  font-family:Inter,sans-serif;font-size:11px;font-weight:700;
+                  color:${color};position:relative;box-shadow:0 0 12px ${color}66;
+                ">
+                  ${agent.firstName?.[0] || 'A'}${agent.lastName?.[0] || ''}
                   <div style="
                     position:absolute;top:-4px;right:-4px;
                     width:10px;height:10px;border-radius:50%;
-                    background:#f59e0b;
-                    box-shadow:0 0 8px #f59e0b;
+                    background:${color};
+                    box-shadow:0 0 8px ${color};
                     animation:pulse 1.5s ease-in-out infinite;
                   "></div>
-                ` : ''}
+                </div>
+                <div style="
+                  background:rgba(9,14,26,0.92);border:1px solid ${color}66;
+                  border-radius:6px;padding:2px 8px;margin-top:4px;
+                  font-size:11px;color:#fff;font-weight:600;
+                  font-family:Inter,sans-serif;white-space:nowrap;
+                  box-shadow:0 2px 8px rgba(0,0,0,0.5);
+                ">${agent.firstName} (Agent)</div>
+              </div>
+            `,
+            iconSize: [40, 64],
+            iconAnchor: [20, 32],
+          });
+
+          const marker = L.marker([agent.lat, agent.lng], { icon }).addTo(markersLayerRef.current);
+
+          marker.bindPopup(`
+            <div style="background:#0d1424;color:#f1f5f9;border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px;min-width:180px;font-family:Inter,sans-serif;">
+              <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${agent.firstName} ${agent.lastName}</div>
+              <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">Territory: ${agent.territory}</div>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color};"></div>
+                <span style="font-size:11px;color:${color};font-weight:600;">${agent.status.replace('_', ' ')}</span>
+              </div>
+              ${agent.currentCustomer ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">Visiting: <strong>${agent.currentCustomer}</strong></div>` : ''}
+            </div>
+          `, { className: 'ground-os-popup' });
+        });
+      }
+
+      // 2. Render Destination Place (Shop / Company / Business)
+      if (destinationPlace) {
+        boundsPoints.push([destinationPlace.lat, destinationPlace.lng]);
+
+        const placeIcon = L.divIcon({
+          className: '',
+          html: `
+            <div style="position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;">
+              <div style="
+                background:linear-gradient(135deg, #f43f5e, #e11d48);
+                color:#fff;padding:5px 12px;border-radius:20px;
+                font-size:11px;font-weight:700;
+                box-shadow:0 0 20px rgba(244,63,94,0.7);
+                white-space:nowrap;display:flex;align-items:center;gap:6px;
+                border:1px solid rgba(255,255,255,0.3);
+              ">
+                <span style="font-size:13px;">🏪</span>
+                <span>${destinationPlace.business || destinationPlace.name}</span>
               </div>
               <div style="
-                background:rgba(9,14,26,0.9);border:1px solid ${color}44;
-                border-radius:6px;padding:2px 6px;margin-top:4px;
-                font-size:10px;color:${color};font-weight:600;
-                font-family:Inter,sans-serif;white-space:nowrap;
-              ">${agent.firstName}</div>
+                width:0;height:0;
+                border-left:6px solid transparent;border-right:6px solid transparent;
+                border-top:8px solid #e11d48;
+              "></div>
             </div>
           `,
-          iconSize: [36, 60],
-          iconAnchor: [18, 30],
+          iconSize: [160, 42],
+          iconAnchor: [80, 42],
         });
 
-        const marker = L.marker([agent.lat, agent.lng], { icon }).addTo(markersLayerRef.current);
+        const destMarker = L.marker([destinationPlace.lat, destinationPlace.lng], { icon: placeIcon }).addTo(markersLayerRef.current);
 
-        marker.bindPopup(`
-          <div style="background:#0d1424;color:#f1f5f9;border:1px solid rgba(99,102,241,0.3);border-radius:10px;padding:14px;min-width:180px;font-family:Inter,sans-serif;">
-            <div style="font-weight:700;font-size:14px;margin-bottom:4px;">${agent.firstName} ${agent.lastName}</div>
-            <div style="font-size:11px;color:#94a3b8;margin-bottom:8px;">${agent.territory}</div>
-            <div style="display:flex;align-items:center;gap:6px;">
-              <div style="width:8px;height:8px;border-radius:50%;background:${color};box-shadow:0 0 6px ${color};"></div>
-              <span style="font-size:11px;color:${color};font-weight:600;">${agent.status.replace('_', ' ')}</span>
+        destMarker.bindPopup(`
+          <div style="background:#0d1424;color:#f1f5f9;border:1px solid rgba(244,63,94,0.4);border-radius:10px;padding:14px;min-width:220px;font-family:Inter,sans-serif;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="font-size:14px;">🏪</span>
+              <span style="font-weight:700;font-size:14px;color:#f43f5e;">${destinationPlace.business || destinationPlace.name}</span>
             </div>
-            ${agent.currentCustomer ? `<div style="font-size:11px;color:#94a3b8;margin-top:6px;">With: ${agent.currentCustomer}</div>` : ''}
+            <div style="font-size:12px;color:#e2e8f0;margin-bottom:4px;">Contact: <strong>${destinationPlace.name}</strong></div>
+            <div style="font-size:11px;color:#94a3b8;margin-bottom:10px;">📍 ${destinationPlace.address}</div>
+            <div style="display:inline-flex;padding:3px 8px;border-radius:12px;font-size:10px;font-weight:700;background:rgba(244,63,94,0.15);color:#f43f5e;border:1px solid rgba(244,63,94,0.3);">
+              ACTIVE VISIT DESTINATION
+            </div>
           </div>
         `, { className: 'ground-os-popup' });
-      });
+
+        // 3. Draw Route Path from Agent to Shop
+        if (agents && agents.length > 0) {
+          const agent = agents[0];
+          L.polyline(
+            [[agent.lat, agent.lng], [destinationPlace.lat, destinationPlace.lng]],
+            {
+              color: '#818cf8',
+              weight: 3,
+              dashArray: '8, 8',
+              opacity: 0.9,
+            }
+          ).addTo(markersLayerRef.current);
+        }
+      }
+
+      // Auto-fit bounds if we have points
+      if (boundsPoints.length > 1) {
+        mapInstanceRef.current.fitBounds(L.latLngBounds(boundsPoints), {
+          padding: [60, 60],
+          maxZoom: 15,
+        });
+      } else if (boundsPoints.length === 1) {
+        mapInstanceRef.current.setView(boundsPoints[0], 14);
+      }
     });
-  }, [agents]);
+  }, [agents, destinationPlace]);
 
   return (
     <div className="map-container" style={{ flex: 1, minHeight: 380, position: 'relative' }}>

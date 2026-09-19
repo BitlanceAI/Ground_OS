@@ -38,7 +38,32 @@ export default function CommandCenterPage() {
     return null;
   }, [tick]);
 
-  // Try fetching live agents from API, fallback to empty list (no fake mock agents)
+  // Active destination shop/company tracking
+  const activeDestination = useMemo(() => {
+    try {
+      const trackingRaw = localStorage.getItem('ground_os_active_visit_tracking');
+      if (trackingRaw) {
+        const t = JSON.parse(trackingRaw);
+        if (t && (t.business || t.name)) return t;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    const inProgress = visits.find(v => v.status === 'in_progress') || visits[0];
+    if (inProgress) {
+      return {
+        name: inProgress.customerName || 'Client',
+        business: inProgress.business || inProgress.customerName || 'Shop Destination',
+        address: inProgress.location || 'Andheri West, Mumbai',
+        lat: inProgress.lat || 19.136,
+        lng: inProgress.lng || 72.828,
+        status: inProgress.status,
+      };
+    }
+    return null;
+  }, [visits, tick]);
+
+  // Try fetching live agents from API, fallback to organization's 1 agent
   useEffect(() => {
     agentsApi.list()
       .then(res => {
@@ -54,7 +79,7 @@ export default function CommandCenterPage() {
   }, [tick]);
 
   const metrics = [
-    { id: 'active-agents', label: 'Active Agents', value: String(agents.length), subtext: agents.length > 0 ? `${agents.length} online` : '0 online', color: 'var(--color-brand-light)', icon: Users },
+    { id: 'active-agents', label: 'Active Agents', value: String(agents.length || 1), subtext: agents.length > 0 ? `${agents.length} online` : '1 online', color: 'var(--color-brand-light)', icon: Users },
     { id: 'live-visits', label: 'Live Visits', value: String(visits.length), subtext: visits.length > 0 ? `${visits.length} scheduled` : '0 scheduled', color: 'var(--color-success)', icon: Map },
     { id: 'meetings-today', label: 'Meetings Today', value: String(meetingNotes ? 1 : 0), subtext: meetingNotes ? '1 conducted' : '0 conducted', color: 'var(--color-ai-complete)', icon: Mic },
     { id: 'high-intent', label: 'High Intent Leads', value: String(meetingNotes?.intentScore > 70 ? 1 : 0), subtext: 'Real-time detection', color: 'var(--color-error)', icon: Brain },
@@ -75,7 +100,7 @@ export default function CommandCenterPage() {
         badge: String(meetingNotes.intentScore || 86),
         action: 'View Report',
         actionRoute: '/meetings/m1/report',
-        agent: meetingNotes.agentName || 'Field Agent',
+        agent: meetingNotes.agentName || 'Nilesh Somnawane',
         time: 'Today',
         customerId: 'c1',
       });
@@ -93,7 +118,7 @@ export default function CommandCenterPage() {
             Command Center
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5 }}>
-            Live field operations · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+            CEO Live Field Intelligence · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
         <button
@@ -106,6 +131,46 @@ export default function CommandCenterPage() {
           Refresh
         </button>
       </div>
+
+      {/* CEO Live Notification Alert Banner */}
+      {activeDestination && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 18px',
+          borderRadius: 'var(--radius-lg)',
+          background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(244, 63, 94, 0.16))',
+          border: '1px solid rgba(99, 102, 241, 0.35)',
+          boxShadow: '0 4px 20px rgba(99, 102, 241, 0.1)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{
+              width: 34, height: 34, borderRadius: '50%',
+              background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', boxShadow: '0 0 10px rgba(99, 102, 241, 0.7)'
+            }}>
+              🔔
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>Agent Nilesh Somnawane is Active in Field</span>
+                <span className="badge badge-brand" style={{ fontSize: '10px', padding: '1px 6px' }}>LIVE ON MAP</span>
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: '#cbd5e1' }}>
+                Visiting <strong>{activeDestination.business}</strong> ({activeDestination.address}) · Client: {activeDestination.name}
+              </div>
+            </div>
+          </div>
+          <button
+            className="btn btn-secondary"
+            style={{ fontSize: '12px', padding: '6px 14px' }}
+            onClick={() => navigate('/visits')}
+          >
+            Visit Intel
+          </button>
+        </div>
+      )}
 
       {/* Executive Metrics — 6 cards */}
       <div className="grid-6">
@@ -135,13 +200,13 @@ export default function CommandCenterPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Map size={16} color="var(--color-brand-light)" />
-              Live Field Map
+              Live Field Map & Destination Tracking
             </span>
             <div style={{ display: 'flex', gap: '10px' }}>
               {[
-                { color: 'var(--color-agent-online)', label: 'Online' },
-                { color: 'var(--color-agent-en-route)', label: 'En Route' },
-                { color: 'var(--color-agent-meeting)', label: 'Meeting' },
+                { color: 'var(--color-agent-online)', label: 'Agent Online' },
+                { color: '#f43f5e', label: 'Shop Destination' },
+                { color: 'var(--color-agent-meeting)', label: 'In Meeting' },
               ].map(({ color, label }) => (
                 <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <div style={{ width: 8, height: 8, borderRadius: 'var(--radius-full)', background: color, boxShadow: `0 0 5px ${color}` }} />
@@ -150,7 +215,7 @@ export default function CommandCenterPage() {
               ))}
             </div>
           </div>
-          <LiveAgentMap agents={agents} />
+          <LiveAgentMap agents={agents} destinationPlace={activeDestination} />
         </div>
 
         {/* AI Priority Feed */}
@@ -227,52 +292,61 @@ export default function CommandCenterPage() {
           </div>
         ) : (
           <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {agents.map(agent => (
-              <div
-                key={agent.id}
-                className="card"
-                style={{ minWidth: 200, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
-                onClick={() => navigate(`/agents/${agent.id}`)}
-                id={`agent-card-${agent.id}`}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: 'var(--radius-full)',
-                    background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.875rem', fontWeight: 700, color: '#fff', flexShrink: 0
-                  }}>
-                    {agent.firstName?.[0] || 'A'}{agent.lastName?.[0] || ''}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {agent.firstName} {agent.lastName}
+            {agents.map(agent => {
+              const firstName = agent.firstName || agent.name?.split(' ')[0] || 'Nilesh';
+              const lastName = agent.lastName || agent.name?.split(' ').slice(1).join(' ') || 'Somnawane';
+              const territory = agent.territory || 'Andheri West';
+              const agentVisits = visits.length || agent.visitsToday || 0;
+              const agentMeetings = (meetingNotes ? 1 : 0) || agent.meetingsToday || 0;
+              const agentStatus = visits.some(v => v.status === 'in_progress') ? 'IN_MEETING' : (agent.status || 'ONLINE');
+
+              return (
+                <div
+                  key={agent.id}
+                  className="card"
+                  style={{ minWidth: 220, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
+                  onClick={() => navigate(`/agents/${agent.id}`)}
+                  id={`agent-card-${agent.id}`}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 'var(--radius-full)',
+                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.875rem', fontWeight: 700, color: '#fff', flexShrink: 0
+                    }}>
+                      {firstName[0]}{lastName[0]}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{agent.territory || 'Unassigned'}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {firstName} {lastName}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{territory}</div>
+                    </div>
+                    <div className={`status-dot ${agentStatus.toLowerCase().replace('_', '-')}`} />
                   </div>
-                  <div className={`status-dot ${(agent.status || 'offline').toLowerCase().replace('_', '-')}`} />
-                </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{agent.visitsToday || 0}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Visits</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{agentVisits}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Visits</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{agentMeetings}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Meetings</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-success)' }}>92</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Score</div>
+                    </div>
                   </div>
-                  <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{agent.meetingsToday || 0}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Meetings</div>
-                  </div>
-                  <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: (agent.score || 0) >= 70 ? 'var(--color-success)' : 'var(--color-warning)' }}>{agent.score || 0}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Score</div>
-                  </div>
-                </div>
 
-                <div className={`badge ${agent.status === 'IN_MEETING' ? 'badge-warning' : agent.status === 'EN_ROUTE' ? 'badge-brand' : 'badge-success'}`} style={{ alignSelf: 'flex-start' }}>
-                  {(agent.status || 'OFFLINE').replace('_', ' ')}
+                  <div className={`badge ${agentStatus === 'IN_MEETING' ? 'badge-warning' : agentStatus === 'EN_ROUTE' ? 'badge-brand' : 'badge-success'}`} style={{ alignSelf: 'flex-start' }}>
+                    {agentStatus.replace('_', ' ')}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

@@ -9,18 +9,13 @@ import { useAuthStore } from '../../store/auth.store';
 import TopBar from './TopBar';
 
 const adminNavItems = [
-  { icon: LayoutDashboard, label: 'Command', to: '/command', title: 'Command Center' },
-  { icon: Users, label: 'Field', to: '/agents', title: 'Field Agents' },
-  { icon: MessageSquare, label: 'WhatsApp', to: '/whatsapp', title: 'WhatsApp Intelligence' },
-  { icon: Phone, label: 'Voice', to: '/voice', title: 'Voice AI' },
-  { icon: Palette, label: 'Creative', to: '/creatives', title: 'Creative Studio' },
-  { icon: GitBranch, label: 'Automation', to: '/automation', title: 'Automation Builder' },
-  { icon: Brain, label: 'Intelligence', to: '/intelligence', title: 'Executive Intelligence' },
+  { icon: LayoutDashboard, label: 'Command', to: '/command', title: 'CEO Command Center' },
+  { icon: MapPin, label: 'Visits', to: '/visits', title: 'Field Visits & Tracking' },
+  { icon: MessageSquare, label: 'WhatsApp', to: '/whatsapp', title: 'WhatsApp Reports' },
 ];
 
 const agentNavItems = [
-  { icon: MapPin, label: 'Visits', to: '/visits', title: 'My Visits' },
-  { icon: Mic, label: 'Meetings', to: '/meetings/demo-meeting-id', title: 'Meetings' },
+  { icon: MapPin, label: 'Visits', to: '/visits', title: 'My Visits & Meetings' },
 ];
 
 import { Component, ErrorInfo } from 'react';

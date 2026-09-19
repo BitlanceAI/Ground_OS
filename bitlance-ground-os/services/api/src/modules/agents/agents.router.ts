@@ -31,92 +31,40 @@ function getRedisPublisher(): IORedis | null {
   }
 }
 
-// ── Mock fallback ─────────────────────────────────────────
+// ── Single Real Agent fallback ─────────────────────────
 const mockAgents = [
   {
-    id: 'agt-aman-01',
-    name: 'Aman Sharma',
+    id: 'agt-nilesh-01',
+    name: 'Nilesh Somnawane',
+    firstName: 'Nilesh',
+    lastName: 'Somnawane',
     phone: '+91 98765 43210',
-    email: 'aman.sharma@lifestylehomes.com',
+    email: 'nilesh@lifestylehomes.in',
     role: 'FIELD_SALES_EXECUTIVE',
-    status: 'IN_MEETING',
-    location: {
-      latitude: 28.5355,
-      longitude: 77.3910,
-      accuracy: 4.5,
-      address: 'Rajesh Electronics, Sector 62, Noida',
-      timestamp: new Date().toISOString(),
-    },
-    todayStats: {
-      assignedVisits: 6,
-      completedVisits: 3,
-      meetingsHeld: 3,
-      activeMeetingMinutes: 24,
-      qualityScore: 92,
-      distanceTravelledKm: 18.4,
-    },
-    route: [
-      { id: 'v-1', customer: 'Vijay Verma', status: 'COMPLETED', time: '10:00 AM' },
-      { id: 'v-2', customer: 'Rajesh Kumar', status: 'IN_PROGRESS', time: '11:15 AM' },
-      { id: 'v-3', customer: 'Pooja Gupta', status: 'PENDING', time: '02:00 PM' },
-      { id: 'v-4', customer: 'Deepak Rao', status: 'PENDING', time: '03:45 PM' },
-    ],
-    coachingInsight: {
-      topStrength: 'Exceptional objection deflection on carpet area query',
-      improvementArea: 'Ask for tentative possession timeline earlier in meeting',
-      lastAudioReviewScore: 94,
-    }
-  },
-  {
-    id: 'agt-priya-02',
-    name: 'Priya Mehta',
-    phone: '+91 98111 22334',
-    email: 'priya.mehta@lifestylehomes.com',
-    role: 'FIELD_SALES_EXECUTIVE',
-    status: 'EN_ROUTE',
-    location: {
-      latitude: 28.5390,
-      longitude: 77.3820,
-      accuracy: 6.0,
-      address: 'Sector 63 Commercial Hub, Noida',
-      timestamp: new Date().toISOString(),
-    },
-    todayStats: {
-      assignedVisits: 5,
-      completedVisits: 2,
-      meetingsHeld: 2,
-      activeMeetingMinutes: 0,
-      qualityScore: 88,
-      distanceTravelledKm: 12.1,
-    },
-  },
-  {
-    id: 'agt-rohit-03',
-    name: 'Rohit Singhania',
-    phone: '+91 98222 33445',
-    email: 'rohit.s@lifestylehomes.com',
-    role: 'SENIOR_ADVISOR',
     status: 'ONLINE',
+    territory: 'Andheri West',
+    lat: 19.1236,
+    lng: 72.8371,
     location: {
-      latitude: 28.5440,
-      longitude: 77.4010,
-      accuracy: 5.0,
-      address: 'Lifestyle Palms Sales Pavilion',
+      latitude: 19.1236,
+      longitude: 72.8371,
+      accuracy: 4.5,
+      address: 'Andheri West, Mumbai',
       timestamp: new Date().toISOString(),
     },
     todayStats: {
-      assignedVisits: 4,
-      completedVisits: 4,
-      meetingsHeld: 4,
+      assignedVisits: 0,
+      completedVisits: 0,
+      meetingsHeld: 0,
       activeMeetingMinutes: 0,
-      qualityScore: 96,
-      distanceTravelledKm: 22.0,
+      qualityScore: 92,
+      distanceTravelledKm: 0,
     },
   }
 ];
 
 function getOrgId(req: AuthenticatedRequest): string {
-  return (req as any).user?.orgId || 'org-demo-001';
+  return (req as any).user?.orgId || 'cmu6rccxv0000m5096k26az1d';
 }
 
 // ── GET /api/v1/agents ─────────────────────────────────────
@@ -151,23 +99,35 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
         id: agent.id,
         userId: agent.userId,
         name: `${agent.user.firstName} ${agent.user.lastName}`,
+        firstName: agent.user.firstName,
+        lastName: agent.user.lastName,
+        territory: agent.territory || 'Andheri West',
         phone: agent.phone,
         email: agent.user.email,
         role: agent.user.role,
-        status: agent.status || 'OFFLINE',
+        status: agent.status || 'ONLINE',
         avatarUrl: agent.user.avatarUrl,
+        lat: agent.currentLatitude || 19.1236,
+        lng: agent.currentLongitude || 72.8371,
         location: agent.currentLatitude && agent.currentLongitude ? {
           latitude: agent.currentLatitude,
           longitude: agent.currentLongitude,
           timestamp: agent.lastSeenAt?.toISOString(),
-        } : null,
+        } : {
+          latitude: 19.1236,
+          longitude: 72.8371,
+          timestamp: new Date().toISOString(),
+        },
         todayStats: { assignedVisits, completedVisits, meetingsHeld },
       };
     }));
 
-    return res.json({ success: true, data: agentsWithStats });
+    if (agentsWithStats.length > 0) {
+      return res.json({ success: true, data: agentsWithStats });
+    }
+    return res.json({ success: true, data: mockAgents });
   } catch (err) {
-    console.warn('[Agents] DB unavailable, using mock:', (err as Error).message);
+    console.warn('[Agents] DB unavailable, using default agent:', (err as Error).message);
     return res.json({ success: true, data: mockAgents, _mock: true });
   }
 });

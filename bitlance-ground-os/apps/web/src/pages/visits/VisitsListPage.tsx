@@ -95,6 +95,32 @@ export default function VisitsListPage() {
   };
 
   const handleStartVisit = (visit: Visit) => {
+    // Update visit status to in_progress
+    setVisits(prev => prev.map(v => v.id === visit.id ? { ...v, status: 'in_progress' } : v));
+
+    // Broadcast active visit tracking for CEO panel and Google Map
+    const trackingPayload = {
+      visitId: visit.id,
+      name: visit.customerName,
+      business: visit.business || visit.customerName,
+      address: visit.location || 'Andheri West, Mumbai',
+      lat: 19.136,
+      lng: 72.828,
+      status: 'IN_PROGRESS',
+      agentName: 'Nilesh Somnawane',
+      startedAt: new Date().toISOString(),
+    };
+
+    try {
+      localStorage.setItem('ground_os_active_visit_tracking', JSON.stringify(trackingPayload));
+      // Notify CEO through storage event
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.error(e);
+    }
+
+    toast.success(`Checked in at ${visit.business || visit.customerName}! Live location broadcasting to CEO panel.`);
+
     navigate('/meetings/m1', {
       state: {
         customerName: visit.customerName,

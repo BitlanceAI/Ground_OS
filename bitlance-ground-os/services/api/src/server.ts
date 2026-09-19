@@ -2,6 +2,12 @@
 // BITLANCE GROUND OS — API Server Entry Point
 // ============================================================
 
+import path from 'path';
+import dotenv from 'dotenv';
+// Load environment variables from root and local
+dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

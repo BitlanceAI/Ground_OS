@@ -19,8 +19,8 @@ const mockMeetings = [
   {
     id: 'mtg-001',
     visitId: 'vis-001',
-    agentId: 'agt-aman-01',
-    agentName: 'Aman Sharma',
+    agentId: 'agt-nilesh-01',
+    agentName: 'Nilesh Somnawane',
     customerId: 'cust-rajesh-01',
     customerName: 'Rajesh Kumar',
     status: 'ANALYSED',
@@ -28,17 +28,17 @@ const mockMeetings = [
     startedAt: new Date(Date.now() - 3600000).toISOString(),
     endedAt: new Date(Date.now() - 1920000).toISOString(),
     audioUrl: 'https://audio.bitlance-os.internal/recordings/mtg-001.mp3',
-    transcript: `Aman: Namaste Rajesh ji, thank you for your time today.
-Rajesh Kumar: Namaste Aman. Haan, I saw your advertisement on Instagram about Lifestyle Palms. We are looking to buy a 3BHK for our family.
-Aman: Wonderful. Could you share what specific carpet area you are prioritizing?
+    transcript: `Nilesh: Namaste Rajesh ji, thank you for your time today.
+Rajesh Kumar: Namaste Nilesh. Haan, I saw your advertisement on Instagram about Lifestyle Palms. We are looking to buy a 3BHK for our family.
+Nilesh: Wonderful. Could you share what specific carpet area you are prioritizing?
 Rajesh Kumar: We need at least 1600 sq.ft. East facing preferably because of Vastu. Also, parking for 2 cars is a must.
-Aman: Lifestyle Palms 3BHK Grand Edition offers 1650 sq.ft super area, 2 dedicated covered stilt parkings.
+Nilesh: Lifestyle Palms 3BHK Grand Edition offers 1650 sq.ft super area, 2 dedicated covered stilt parkings.
 Rajesh Kumar: What is the price range?
-Aman: The all-inclusive launch price for East-facing units is ₹96.5 Lakhs, including GST.
+Nilesh: The all-inclusive launch price for East-facing units is ₹96.5 Lakhs, including GST.
 Rajesh Kumar: DLF Sky is offering 3BHK in Sector 63 for ₹88 Lakhs. Why is Lifestyle Palms higher?
-Aman: DLF's super-to-carpet efficiency is only 68%, giving you 1150 sq.ft carpet, whereas ours is 80% (1320 sq.ft). You get 170 sq.ft more usable area.
+Nilesh: DLF's super-to-carpet efficiency is only 68%, giving you 1150 sq.ft carpet, whereas ours is 80% (1320 sq.ft). You get 170 sq.ft more usable area.
 Rajesh Kumar: Can you send me the comparative breakdown on WhatsApp?
-Aman: Absolutely. Can we schedule a site visit for Saturday at 11 AM?
+Nilesh: Absolutely. Can we schedule a site visit for Saturday at 11 AM?
 Rajesh Kumar: Yes, Saturday 11 AM works.`.trim(),
     insight: {
       summary: 'High-intent 3BHK enquiry for self-use. Customer required min 1600 sq.ft, East-facing, 2 parkings. Overcame DLF price objection via carpet-area efficiency. Saturday 11 AM site visit agreed.',
