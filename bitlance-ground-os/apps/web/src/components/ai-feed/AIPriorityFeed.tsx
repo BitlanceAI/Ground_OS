@@ -47,7 +47,7 @@ export default function AIPriorityFeed({ items }: Props) {
     <div style={{
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
+      gap: '12px',
       overflowY: 'auto',
       flex: 1,
     }}>
@@ -55,14 +55,14 @@ export default function AIPriorityFeed({ items }: Props) {
         <div
           key={item.id}
           className={`card ${FEED_CLASSES[item.type] || ''}`}
-          style={{ padding: '14px 16px', cursor: 'pointer' }}
+          style={{ padding: '16px', cursor: 'pointer' }}
           onClick={() => navigate(item.actionRoute)}
           id={`feed-item-${item.id}`}
         >
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
             {/* Icon */}
             <div style={{
-              width: 28, height: 28, borderRadius: '50%',
+              width: 32, height: 32, borderRadius: 'var(--radius-full)',
               background: 'rgba(255,255,255,0.05)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               flexShrink: 0, marginTop: '2px'
@@ -72,36 +72,36 @@ export default function AIPriorityFeed({ items }: Props) {
 
             {/* Content */}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '4px' }}>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '0.04em' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '6px' }}>
+                <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
                   {item.title}
                 </span>
-                <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)', flexShrink: 0 }}>{item.time}</span>
+                <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', fontWeight: 500, flexShrink: 0 }}>{item.time}</span>
               </div>
 
-              <p style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginBottom: '10px' }}>
+              <p style={{ fontSize: '0.875rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, marginBottom: '12px' }}>
                 {item.body}
               </p>
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {item.badge && (
-                    <span className={`badge ${FEED_BADGE_COLORS[item.type] || 'badge-brand'}`}>
-                      {item.badge}
+                    <span className={`badge ${FEED_BADGE_COLORS[item.type] || 'badge-brand'}`} style={{ fontSize: '0.75rem' }}>
+                      Score {item.badge}
                     </span>
                   )}
                   {item.agent && (
-                    <span style={{ fontSize: '0.65rem', color: 'var(--color-text-muted)' }}>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
                       {item.agent}
                     </span>
                   )}
                 </div>
                 <button
                   className="btn btn-ghost"
-                  style={{ fontSize: '0.72rem', padding: '3px 8px', gap: '3px', color: 'var(--color-brand-light)' }}
+                  style={{ gap: '4px', color: 'var(--color-brand-light)' }}
                   onClick={(e) => { e.stopPropagation(); navigate(item.actionRoute); }}
                 >
-                  {item.action} <ChevronRight size={11} />
+                  {item.action} <ChevronRight size={14} />
                 </button>
               </div>
             </div>

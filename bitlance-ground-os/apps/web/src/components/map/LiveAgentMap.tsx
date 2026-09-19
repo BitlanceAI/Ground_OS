@@ -44,10 +44,16 @@ export default function LiveAgentMap({ agents }: LiveAgentMapProps) {
       // OpenStreetMap with CSS filter for dark theme (to bypass Carto API key requirement)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
-        className: 'map-tiles'
+        className: 'map-tiles',
+        keepBuffer: 4,
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      setTimeout(() => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.invalidateSize();
+        }
+      }, 150);
 
       // Add agent markers
       agents.forEach(agent => {

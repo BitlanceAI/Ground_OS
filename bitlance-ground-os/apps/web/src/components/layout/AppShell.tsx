@@ -99,7 +99,7 @@ export default function AppShell() {
         </div>
 
         {/* Nav Items */}
-        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', marginTop: '16px' }}>
+        <nav style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', marginTop: '20px' }}>
           {navItems.map(({ icon: Icon, label, to, title }) => (
             <NavLink
               key={to}
@@ -108,20 +108,20 @@ export default function AppShell() {
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
               title={title}
             >
-              <Icon size={22} />
+              <Icon size={24} />
               <span className="mobile-nav-label">{label}</span>
             </NavLink>
           ))}
         </nav>
 
         {/* Bottom */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'center', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', paddingBottom: '32px' }}>
           <button className="nav-item" title="Settings">
-            <Settings size={22} />
+            <Settings size={24} />
             <span className="mobile-nav-label">Settings</span>
           </button>
           <button className="nav-item" onClick={handleLogout} title="Logout">
-            <LogOut size={22} />
+            <LogOut size={24} />
             <span className="mobile-nav-label">Logout</span>
           </button>
 
