@@ -11,11 +11,13 @@ import TopBar from './TopBar';
 const adminNavItems = [
   { icon: LayoutDashboard, label: 'Command', to: '/command', title: 'CEO Command Center' },
   { icon: MapPin, label: 'Visits', to: '/visits', title: 'Field Visits & Tracking' },
+  { icon: Users, label: 'Agent Portal', to: '/agents/agt-nilesh-01', title: 'Agent Nilesh Portal' },
   { icon: MessageSquare, label: 'WhatsApp', to: '/whatsapp', title: 'WhatsApp Reports' },
 ];
 
 const agentNavItems = [
   { icon: MapPin, label: 'Visits', to: '/visits', title: 'My Visits & Meetings' },
+  { icon: Users, label: 'Agent Portal', to: '/agents/agt-nilesh-01', title: 'Agent Nilesh Portal' },
 ];
 
 import { Component, ErrorInfo } from 'react';

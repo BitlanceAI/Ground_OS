@@ -6,6 +6,7 @@ interface Agent {
   id: string;
   firstName: string;
   lastName: string;
+  name?: string;
   status: string;
   lat: number;
   lng: number;
@@ -119,7 +120,7 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
       if (!mapRef.current || mapInstanceRef.current) return;
       
       const map = L.map(mapRef.current, {
-        center: [19.12, 72.84],
+        center: [28.5921, 77.0460], // Delhi NCR (Dwarka)
         zoom: 13,
         zoomControl: true,
         attributionControl: false,
@@ -176,11 +177,26 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
 
       const boundsPoints: [number, number][] = [];
 
-      // 1. Render Agent Markers
-      if (agents && agents.length > 0) {
-        agents.forEach(agent => {
-          boundsPoints.push([agent.lat, agent.lng]);
-          const color = STATUS_COLORS[agent.status] || '#64748b';
+      // 1. Render Sole Agent Marker (Nilesh Somnawane)
+      const validAgents = (agents && agents.length > 0)
+        ? agents.filter(a => a.firstName === 'Nilesh' || a.name?.includes('Nilesh'))
+        : [];
+
+      // Fallback to Nilesh if filtered array is empty
+      const displayAgents = validAgents.length > 0 ? validAgents : [{
+        id: 'agt-nilesh-01',
+        firstName: 'Nilesh',
+        lastName: 'Somnawane',
+        status: 'ONLINE',
+        lat: 28.5921,
+        lng: 77.0460,
+        territory: 'Delhi NCR (Dwarka)',
+        currentCustomer: destinationPlace?.name || null,
+      }];
+
+      displayAgents.forEach(agent => {
+        boundsPoints.push([agent.lat, agent.lng]);
+        const color = STATUS_COLORS[agent.status] || '#10b981';
 
           const icon = L.divIcon({
             className: '',
@@ -230,11 +246,18 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
             </div>
           `, { className: 'ground-os-popup' });
         });
-      }
 
       // 2. Render Destination Place (Shop / Company / Business)
       if (destinationPlace) {
-        boundsPoints.push([destinationPlace.lat, destinationPlace.lng]);
+        let destLat = destinationPlace.lat;
+        let destLng = destinationPlace.lng;
+        const addrLower = (destinationPlace.address || '').toLowerCase();
+        if ((addrLower.includes('delhi') || addrLower.includes('dwarka')) && destLat < 25) {
+          destLat = 28.5921;
+          destLng = 77.0460;
+        }
+
+        boundsPoints.push([destLat, destLng]);
 
         const placeIcon = L.divIcon({
           className: '',
@@ -279,10 +302,10 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
         `, { className: 'ground-os-popup' });
 
         // 3. Draw Route Path from Agent to Shop
-        if (agents && agents.length > 0) {
-          const agent = agents[0];
+        if (displayAgents && displayAgents.length > 0) {
+          const agent = displayAgents[0];
           L.polyline(
-            [[agent.lat, agent.lng], [destinationPlace.lat, destinationPlace.lng]],
+            [[agent.lat, agent.lng], [destLat, destLng]],
             {
               color: '#818cf8',
               weight: 3,

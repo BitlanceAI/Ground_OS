@@ -69,11 +69,7 @@ export default function App() {
             <Navigate to="/command" replace />
           </ProtectedRoute>
         } />
-        <Route path="agents/:agentId" element={
-          <ProtectedRoute allowedRoles={['admin']}>
-            <AgentDetailPage />
-          </ProtectedRoute>
-        } />
+        <Route path="agents/:agentId" element={<AgentDetailPage />} />
         <Route path="customers/:customerId" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <Customer360Page />

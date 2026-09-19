@@ -363,6 +363,30 @@ export default function MeetingModePage() {
 
     localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
     localStorage.setItem('meeting_transcript_m1', JSON.stringify(transcriptItems));
+
+    // Mark visit as completed in agent visits list
+    try {
+      const visitsRaw = localStorage.getItem('ground_os_agent_visits');
+      if (visitsRaw) {
+        const visitsList = JSON.parse(visitsRaw);
+        const updatedList = visitsList.map((v: any) => {
+          if (v.business === businessName || v.customerName === businessOwnerName || v.status === 'in_progress') {
+            return { ...v, status: 'completed' };
+          }
+          return v;
+        });
+        localStorage.setItem('ground_os_agent_visits', JSON.stringify(updatedList));
+      }
+      const trackingRaw = localStorage.getItem('ground_os_active_visit_tracking');
+      if (trackingRaw) {
+        const tr = JSON.parse(trackingRaw);
+        localStorage.setItem('ground_os_active_visit_tracking', JSON.stringify({ ...tr, status: 'COMPLETED' }));
+      }
+      window.dispatchEvent(new Event('storage'));
+    } catch (e) {
+      console.error(e);
+    }
+
     setNotesSaved(true);
     setIsProcessingAudio(false);
     setPhase('complete');
@@ -376,7 +400,7 @@ export default function MeetingModePage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
           <span className="badge badge-brand" style={{ fontSize: '0.75rem', letterSpacing: '0.04em' }}>FIELD OS</span>
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>•</span>
-          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Andheri West Hub</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Delhi NCR Hub</span>
         </div>
         <h1 style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '6px' }}>
           Field Sales Meeting

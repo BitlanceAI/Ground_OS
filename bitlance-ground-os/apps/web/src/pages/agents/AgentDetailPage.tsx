@@ -1,88 +1,258 @@
-import { useNavigate, useParams } from 'react-router-dom';
-import { MapPin, Star, Clock, TrendingUp, ChevronRight, Lightbulb } from 'lucide-react';
-import { DEMO_AGENTS } from '../../lib/demo-data';
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { 
+  MapPin, Star, Clock, TrendingUp, ChevronRight, Lightbulb, 
+  FileText, CheckCircle2, User, Building, ExternalLink, Calendar
+} from 'lucide-react';
 
 export default function AgentDetailPage() {
-  const { agentId } = useParams();
   const navigate = useNavigate();
-  const agent = DEMO_AGENTS.find(a => a.id === agentId) || DEMO_AGENTS[0];
 
-  const qualityBreakdown = [
-    { label: 'Requirement Discovery', score: 85 },
-    { label: 'Customer Engagement', score: 80 },
-    { label: 'Objection Handling', score: 65 },
-    { label: 'Product Knowledge', score: 90 },
-    { label: 'Closing Attempt', score: 70 },
-    { label: 'Follow-up Clarity', score: 75 },
-  ];
+  // Load agent visits and meeting records
+  const visits = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ground_os_agent_visits');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const meetingNotes = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('meeting_notes_m1');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const qualityScore = meetingNotes?.qualityScore || 88;
+  const qualityBreakdown = meetingNotes?.qualityBreakdown || {
+    rapport: qualityScore,
+    discovery: Math.max(15, qualityScore - 8),
+    objectionHandling: Math.max(10, qualityScore - 12),
+    closingClarity: Math.max(15, qualityScore - 5),
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div className="card-branded">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 1000, margin: '0 auto', paddingBottom: '40px' }}>
+      
+      {/* Header — Agent Identity */}
+      <div className="card-branded" style={{ padding: '28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '22px', flexWrap: 'wrap' }}>
           <div style={{
-            width: 72, height: 72, borderRadius: '50%',
+            width: 76, height: 76, borderRadius: '50%',
             background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: '1.5rem', fontWeight: 800, color: '#fff',
+            fontSize: '1.75rem', fontWeight: 800, color: '#fff',
             boxShadow: '0 0 24px rgba(99,102,241,0.4)'
           }}>
-            {agent.firstName[0]}{agent.lastName[0]}
+            NS
           </div>
-          <div style={{ flex: 1 }}>
-            <h1 style={{ fontSize: '1.5rem', marginBottom: '4px' }}>{agent.firstName} {agent.lastName}</h1>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
-                <MapPin size={12} />
-                {agent.territory}
+          
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>AGENT PORTAL</span>
+              <div className="status-dot online" />
+              <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Active in Field</span>
+            </div>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 4px 0' }}>Nilesh Somnawane</h1>
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                <MapPin size={14} color="var(--color-brand-light)" />
+                Territory: <strong>Delhi NCR (Dwarka Hub)</strong>
               </div>
-              <div className={`status-dot ${agent.status.toLowerCase().replace('_', '-')}`} />
-              <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{agent.status.replace('_', ' ')}</span>
+              <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+                Phone: +91 98765 43210
+              </span>
             </div>
           </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontFamily: 'var(--font-head)', fontSize: '2.5rem', fontWeight: 900, color: agent.score >= 80 ? 'var(--color-success)' : 'var(--color-warning)' }}>
-              {agent.score}
+
+          <div style={{ textAlign: 'center', padding: '12px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-subtle)' }}>
+            <div style={{ fontFamily: 'var(--font-head)', fontSize: '2.5rem', fontWeight: 900, color: qualityScore >= 70 ? 'var(--color-success)' : qualityScore >= 40 ? 'var(--color-warning)' : 'var(--color-error)' }}>
+              {qualityScore}
             </div>
-            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Agent Score</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Quality Score</div>
           </div>
         </div>
 
         {/* Quick stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '24px' }}>
           {[
-            { label: 'Visits Today', value: agent.visitsToday, icon: '📍' },
-            { label: 'Meetings', value: agent.meetingsToday, icon: '🎙' },
-            { label: 'Qualified Leads', value: 3, icon: '⭐' },
-            { label: 'Follow-ups Due', value: 2, icon: '📋' },
+            { label: 'Planned Visits', value: visits.length, icon: '📍' },
+            { label: 'Meetings Conducted', value: meetingNotes ? 1 : 0, icon: '🎙' },
+            { label: 'High Intent Leads', value: meetingNotes?.qualityScore > 60 ? 1 : 0, icon: '⭐' },
+            { label: 'Follow-ups Pending', value: meetingNotes?.nextAction ? 1 : 0, icon: '📋' },
           ].map(s => (
-            <div key={s.label} style={{ textAlign: 'center', padding: '12px', background: 'rgba(255,255,255,0.04)', borderRadius: '10px' }}>
+            <div key={s.label} style={{ textAlign: 'center', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--color-border-subtle)' }}>
               <div style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{s.icon}</div>
               <div style={{ fontFamily: 'var(--font-head)', fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>{s.value}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{s.label}</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.label}</div>
             </div>
           ))}
         </div>
       </div>
 
+      {/* Dedicated Section: All Meeting Summaries by Agent Nilesh */}
+      <div className="card" style={{ padding: '28px', borderRadius: 'var(--radius-lg)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={20} color="var(--color-brand-light)" />
+              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
+                All Meeting Summaries by Nilesh Somnawane
+              </h2>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
+              Complete record of transcripts, AI summaries, and WhatsApp reports submitted
+            </p>
+          </div>
+
+          <button 
+            className="btn btn-primary"
+            onClick={() => navigate('/visits')}
+            style={{ fontSize: '0.85rem', gap: '6px' }}
+          >
+            <Calendar size={15} /> Plan / Manage Visits
+          </button>
+        </div>
+
+        {/* Real Meeting List (No Demo Clients!) */}
+        {!meetingNotes && visits.length === 0 ? (
+          <div style={{ padding: '36px 20px', textAlign: 'center', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)' }}>
+            <FileText size={36} color="var(--color-text-muted)" style={{ margin: '0 auto 12px' }} />
+            <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem' }}>No Meetings Conducted Yet</h4>
+            <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--color-text-secondary)' }}>
+              When Agent Nilesh completes a visit and records audio, the authentic AI summary will appear here.
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {meetingNotes && (
+              <div style={{
+                padding: '20px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(99, 102, 241, 0.05)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '14px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                      <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>
+                        {meetingNotes.outcome || 'High Intent'}
+                      </span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                        Duration: {meetingNotes.duration || '00:14'}
+                      </span>
+                    </div>
+                    <h3 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: 700 }}>
+                      {meetingNotes.businessName || 'Sreejal Jewellers'}
+                    </h3>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <span>Client: <strong style={{ color: '#fff' }}>{meetingNotes.businessOwnerName || 'Uttam'}</strong></span>
+                      <span>•</span>
+                      <span>Location: <strong>Dwarka Delhi</strong></span>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: meetingNotes.qualityScore >= 70 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                      {meetingNotes.qualityScore || 88}<span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>/100</span>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Score</div>
+                  </div>
+                </div>
+
+                {/* Summary narrative */}
+                <div style={{
+                  background: 'rgba(0,0,0,0.3)',
+                  padding: '14px',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.875rem',
+                  lineHeight: 1.6,
+                  color: '#e2e8f0',
+                  border: '1px solid var(--color-border-subtle)'
+                }}>
+                  <strong style={{ color: 'var(--color-brand-light)' }}>AI Summary: </strong>
+                  {meetingNotes.summary || meetingNotes.notes}
+                </div>
+
+                {meetingNotes.nextAction && (
+                  <div style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Clock size={14} color="var(--color-warning)" />
+                    <span><strong>Next Action Item:</strong> {meetingNotes.nextAction}</span>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => navigate('/meetings/m1/report')}
+                    style={{ fontSize: '0.85rem', padding: '8px 16px', gap: '6px' }}
+                  >
+                    View Full AI Report & Transcripts <ExternalLink size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Any scheduled visits without meetings yet */}
+            {visits.filter((v: any) => !(meetingNotes && (meetingNotes.businessName === v.business || meetingNotes.businessOwnerName === v.customerName))).map((v: any) => (
+              <div key={v.id} style={{
+                padding: '16px',
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(255,255,255,0.02)',
+                border: '1px solid var(--color-border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{v.business} · {v.customerName}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>📍 {v.location} · Scheduled at {v.time}</div>
+                </div>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={() => navigate('/visits')}
+                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                >
+                  Go to Visit
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Meeting Quality Breakdown & Coaching */}
       <div className="grid-2">
-        {/* Meeting Quality */}
-        <div className="card">
-          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Star size={16} color="var(--color-brand-light)" /> Meeting Quality Breakdown
+        <div className="card" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+            <Star size={16} color="var(--color-brand-light)" /> Quality Breakdown
           </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {qualityBreakdown.map(({ label, score }) => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {[
+              { label: 'Requirement Discovery', score: qualityBreakdown.discovery },
+              { label: 'Customer Rapport', score: qualityBreakdown.rapport },
+              { label: 'Objection Handling', score: qualityBreakdown.objectionHandling },
+              { label: 'Closing & Follow-up Clarity', score: qualityBreakdown.closingClarity },
+            ].map(({ label, score }) => (
               <div key={label}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>{label}</span>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: score >= 80 ? 'var(--color-success)' : score >= 65 ? 'var(--color-warning)' : 'var(--color-error)' }}>{score}</span>
+                  <span style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)' }}>{label}</span>
+                  <span style={{ fontSize: '0.825rem', fontWeight: 700, color: score >= 70 ? 'var(--color-success)' : score >= 40 ? 'var(--color-warning)' : 'var(--color-error)' }}>
+                    {score}%
+                  </span>
                 </div>
                 <div style={{ height: 6, background: 'rgba(255,255,255,0.06)', borderRadius: 3 }}>
                   <div style={{
                     height: '100%', borderRadius: 3,
-                    background: score >= 80 ? 'var(--color-success)' : score >= 65 ? 'var(--color-warning)' : 'var(--color-error)',
+                    background: score >= 70 ? 'var(--color-success)' : score >= 40 ? 'var(--color-warning)' : 'var(--color-error)',
                     width: `${score}%`, transition: 'width 0.8s ease'
                   }} />
                 </div>
@@ -91,53 +261,25 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        {/* AI Coaching */}
-        <div className="card">
-          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="card" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
+          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
             <Lightbulb size={16} color="var(--color-ai-recommend)" /> AI Coaching Insights
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {[
-              { insight: 'Converts 34% better when budget is qualified within the first 5 minutes of meeting.', type: 'tip' },
-              { insight: 'Objection handling score has improved 12 points this month — excellent progress.', type: 'positive' },
-              { insight: 'Missing closing attempt in 3 of last 5 meetings. Recommend structured trial close technique.', type: 'action' },
+              { insight: 'Converts 38% better when commercial pricing is introduced after understanding retail counter volume.', type: 'tip' },
+              { insight: 'Territory focus on Dwarka Delhi retail hubs shows high responsiveness to POS and WhatsApp billing proposals.', type: 'positive' },
+              { insight: 'Ensure all recorded meetings conclude with a confirmed WhatsApp proposal delivery timeline.', type: 'action' },
             ].map((c, i) => (
               <div key={i} style={{
-                padding: '12px', borderRadius: '8px',
+                padding: '12px 14px', borderRadius: '8px',
                 background: c.type === 'positive' ? 'rgba(16,185,129,0.08)' : c.type === 'action' ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.08)',
                 border: `1px solid ${c.type === 'positive' ? 'rgba(16,185,129,0.2)' : c.type === 'action' ? 'rgba(245,158,11,0.2)' : 'rgba(99,102,241,0.2)'}`,
               }}>
-                <p style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>{c.insight}</p>
+                <p style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>{c.insight}</p>
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Today's Visits */}
-      <div className="card">
-        <h3 style={{ marginBottom: '16px' }}>Today's Visits</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {[
-            { customer: 'Rajesh Kumar', business: 'Rajesh Electronics', status: 'REPORT_READY', time: '10:41', score: 86 },
-            { customer: 'Amit Patel', business: 'Patel Pharma', status: 'COMPLETED', time: '09:15', score: 54 },
-            { customer: 'Neha Gupta', business: 'Gupta Furniture', status: 'MEETING_STARTED', time: '14:00', score: null },
-            { customer: 'Suresh Shah', business: 'Shah Textiles', status: 'ASSIGNED', time: '16:00', score: null },
-          ].map((v, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', cursor: 'pointer' }}
-              onClick={() => navigate(`/visits/v${i+1}`)}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', width: 36 }}>{v.time}</div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{v.customer}</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{v.business}</div>
-              </div>
-              {v.score && <span className="badge badge-success">{v.score}</span>}
-              <span className={`badge ${v.status === 'REPORT_READY' ? 'badge-brand' : v.status === 'MEETING_STARTED' ? 'badge-warning' : v.status === 'ASSIGNED' ? 'badge-neutral' : 'badge-success'}`}>
-                {v.status.replace('_', ' ')}
-              </span>
-              <ChevronRight size={14} color="var(--color-text-muted)" />
-            </div>
-          ))}
         </div>
       </div>
     </div>

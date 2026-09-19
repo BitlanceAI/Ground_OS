@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Map, Mic, Brain, TrendingUp,
-  ChevronRight, RefreshCw, Calendar, Plus
+  ChevronRight, RefreshCw, Calendar, Plus, ExternalLink
 } from 'lucide-react';
 import { agentsApi } from '../../lib/api';
 import LiveAgentMap from '../../components/map/LiveAgentMap';
@@ -13,7 +13,7 @@ export default function CommandCenterPage() {
   const [agents, setAgents] = useState<any[]>([]);
   const [tick, setTick] = useState(0);
 
-  // Dynamic visits from localStorage
+  // Dynamic visits from localStorage (strictly agent-created visits only)
   const visits = useMemo(() => {
     try {
       const saved = localStorage.getItem('ground_os_agent_visits');
@@ -44,69 +44,98 @@ export default function CommandCenterPage() {
       const trackingRaw = localStorage.getItem('ground_os_active_visit_tracking');
       if (trackingRaw) {
         const t = JSON.parse(trackingRaw);
-        if (t && (t.business || t.name)) return t;
+        if (t && (t.business || t.name)) {
+          // Validate & correct Delhi / Dwarka coordinates if previously defaulted to Mumbai
+          const addr = (t.address || '').toLowerCase();
+          if ((addr.includes('delhi') || addr.includes('dwarka')) && t.lat < 25) {
+            t.lat = 28.5921;
+            t.lng = 77.0460;
+          }
+          return t;
+        }
       }
     } catch (e) {
       console.error(e);
     }
     const inProgress = visits.find(v => v.status === 'in_progress') || visits[0];
     if (inProgress) {
+      const addr = (inProgress.location || '').toLowerCase();
+      const isDelhi = addr.includes('delhi') || addr.includes('dwarka');
       return {
         name: inProgress.customerName || 'Client',
         business: inProgress.business || inProgress.customerName || 'Shop Destination',
-        address: inProgress.location || 'Andheri West, Mumbai',
-        lat: inProgress.lat || 19.136,
-        lng: inProgress.lng || 72.828,
+        address: inProgress.location || 'Dwarka Delhi',
+        lat: inProgress.lat || (isDelhi ? 28.5921 : 28.5921),
+        lng: inProgress.lng || (isDelhi ? 77.0460 : 77.0460),
         status: inProgress.status,
       };
     }
     return null;
   }, [visits, tick]);
 
-  // Try fetching live agents from API, fallback to organization's 1 agent
+  // Ensure solely Nilesh Somnawane exists as the 1 active agent in Delhi
   useEffect(() => {
-    agentsApi.list()
-      .then(res => {
-        if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-          setAgents(res.data);
-        } else {
-          setAgents([]);
-        }
-      })
-      .catch(() => {
-        setAgents([]);
-      });
-  }, [tick]);
+    let agentLoc: any = null;
+    try {
+      const savedLoc = localStorage.getItem('ground_os_agent_location');
+      if (savedLoc) agentLoc = JSON.parse(savedLoc);
+    } catch (e) {
+      // ignore
+    }
+
+    const nilesh = {
+      id: 'cmu6rgile000a5m6xjc38jqj6',
+      name: 'Nilesh Somnawane',
+      firstName: 'Nilesh',
+      lastName: 'Somnawane',
+      territory: 'Delhi NCR (Dwarka)',
+      phone: '+91 98765 43210',
+      email: 'nilesh@lifestylehomes.in',
+      role: 'FIELD_SALES_EXECUTIVE',
+      status: (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE',
+      lat: agentLoc?.lat || 28.5921,
+      lng: agentLoc?.lng || 77.0460,
+      visitsToday: visits.length,
+      meetingsToday: meetingNotes ? 1 : 0,
+      score: meetingNotes?.qualityScore || 88,
+    };
+
+    setAgents([nilesh]);
+  }, [tick, visits, meetingNotes, activeDestination]);
 
   const metrics = [
-    { id: 'active-agents', label: 'Active Agents', value: String(agents.length || 1), subtext: agents.length > 0 ? `${agents.length} online` : '1 online', color: 'var(--color-brand-light)', icon: Users },
+    { id: 'active-agents', label: 'Active Agents', value: '1', subtext: '1 online', color: 'var(--color-brand-light)', icon: Users },
     { id: 'live-visits', label: 'Live Visits', value: String(visits.length), subtext: visits.length > 0 ? `${visits.length} scheduled` : '0 scheduled', color: 'var(--color-success)', icon: Map },
     { id: 'meetings-today', label: 'Meetings Today', value: String(meetingNotes ? 1 : 0), subtext: meetingNotes ? '1 conducted' : '0 conducted', color: 'var(--color-ai-complete)', icon: Mic },
-    { id: 'high-intent', label: 'High Intent Leads', value: String(meetingNotes?.intentScore > 70 ? 1 : 0), subtext: 'Real-time detection', color: 'var(--color-error)', icon: Brain },
-    { id: 'ai-followups', label: 'AI Follow-ups', value: String(meetingNotes?.actionItems?.length || 0), subtext: meetingNotes?.actionItems?.length ? `${meetingNotes.actionItems.length} pending` : '0 pending', color: 'var(--color-ai-processing)', icon: RefreshCw },
+    { id: 'high-intent', label: 'High Intent Leads', value: String(meetingNotes?.qualityScore > 60 ? 1 : 0), subtext: 'Real-time detection', color: 'var(--color-error)', icon: Brain },
+    { id: 'ai-followups', label: 'AI Follow-ups', value: String(meetingNotes?.nextAction ? 1 : 0), subtext: meetingNotes?.nextAction ? '1 pending' : '0 pending', color: 'var(--color-ai-processing)', icon: RefreshCw },
     { id: 'pipeline', label: 'Pipeline Value', value: '₹0', subtext: 'Current pipeline', color: 'var(--color-ai-recommend)', icon: TrendingUp },
   ];
 
-  // Dynamic AI signals derived from actual user activity
+  // Dynamic AI signals derived ONLY from actual client visits & meetings conducted by Nilesh
   const feedItems = useMemo(() => {
     const items = [];
     if (meetingNotes) {
+      const client = meetingNotes.businessOwnerName || activeDestination?.name || 'Client';
+      const shop = meetingNotes.businessName || activeDestination?.business || 'Business';
+      const isLow = meetingNotes.intentLevel === 'LOW' || meetingNotes.qualityScore < 30;
+
       items.push({
         id: 'meeting-signal-m1',
-        type: 'HIGH_INTENT',
+        type: isLow ? 'FOLLOW_UP_RISK' : 'HIGH_INTENT',
         priority: 'CRITICAL',
-        title: `HIGH INTENT — ${meetingNotes.customerName || 'Rajesh Kumar'}`,
-        body: meetingNotes.executiveSummary || (meetingNotes.dealIntel ? `${meetingNotes.dealIntel.configuration || '3BHK'} · ${meetingNotes.dealIntel.budget || '₹80L-₹1Cr'} · ${meetingNotes.dealIntel.timeline || 'Immediate'}` : 'Meeting summary and transcript recorded.'),
-        badge: String(meetingNotes.intentScore || 86),
-        action: 'View Report',
+        title: `${meetingNotes.outcome?.toUpperCase() || (isLow ? 'LOW INTENT' : 'HIGH INTENT')} — ${client} (${shop})`,
+        body: meetingNotes.summary || 'Meeting summary and transcript recorded.',
+        badge: `${meetingNotes.qualityScore || 78}/100`,
+        action: 'View Summary',
         actionRoute: '/meetings/m1/report',
-        agent: meetingNotes.agentName || 'Nilesh Somnawane',
+        agent: 'Nilesh Somnawane',
         time: 'Today',
         customerId: 'c1',
       });
     }
     return items;
-  }, [meetingNotes]);
+  }, [meetingNotes, activeDestination]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
@@ -118,7 +147,7 @@ export default function CommandCenterPage() {
             Command Center
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', lineHeight: 1.5 }}>
-            CEO Live Field Intelligence · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+            CEO Live Field Intelligence · Delhi NCR Hub · {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
         <button
@@ -138,17 +167,17 @@ export default function CommandCenterPage() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 18px',
+          padding: '14px 20px',
           borderRadius: 'var(--radius-lg)',
           background: 'linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(244, 63, 94, 0.16))',
           border: '1px solid rgba(99, 102, 241, 0.35)',
           boxShadow: '0 4px 20px rgba(99, 102, 241, 0.1)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             <div style={{
-              width: 34, height: 34, borderRadius: '50%',
+              width: 36, height: 36, borderRadius: '50%',
               background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: '#fff', boxShadow: '0 0 10px rgba(99, 102, 241, 0.7)'
+              color: '#fff', boxShadow: '0 0 12px rgba(99, 102, 241, 0.7)'
             }}>
               🔔
             </div>
@@ -158,16 +187,18 @@ export default function CommandCenterPage() {
                 <span className="badge badge-brand" style={{ fontSize: '10px', padding: '1px 6px' }}>LIVE ON MAP</span>
               </div>
               <div style={{ fontSize: '0.8125rem', color: '#cbd5e1' }}>
-                Visiting <strong>{activeDestination.business}</strong> ({activeDestination.address}) · Client: {activeDestination.name}
+                Visiting <strong>{activeDestination.business}</strong> ({activeDestination.address}) · Client: <strong>{activeDestination.name}</strong>
               </div>
             </div>
           </div>
+          {/* Admin sees summary of the meeting only */}
           <button
             className="btn btn-secondary"
-            style={{ fontSize: '12px', padding: '6px 14px' }}
-            onClick={() => navigate('/visits')}
+            style={{ fontSize: '12px', padding: '7px 16px', gap: '6px', fontWeight: 600 }}
+            onClick={() => navigate('/meetings/m1/report')}
+            title="View Meeting Summary"
           >
-            Visit Intel
+            Visit Intel <ExternalLink size={13} />
           </button>
         </div>
       )}
@@ -200,7 +231,7 @@ export default function CommandCenterPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Map size={16} color="var(--color-brand-light)" />
-              Live Field Map & Destination Tracking
+              Live Field Map & Destination Tracking (Delhi NCR)
             </span>
             <div style={{ display: 'flex', gap: '10px' }}>
               {[
@@ -223,132 +254,97 @@ export default function CommandCenterPage() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Brain size={16} color="var(--color-brand-light)" />
-              AI Priority Feed
+              Live Meeting Intelligence
             </span>
             <span className="badge badge-neutral" style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'none', fontWeight: 500 }}>
               {feedItems.length} {feedItems.length === 1 ? 'signal' : 'signals'}
             </span>
           </div>
-          <AIPriorityFeed items={feedItems} />
+
+          {feedItems.length === 0 ? (
+            <div className="card" style={{ padding: '32px 20px', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
+              <Brain size={36} color="var(--color-brand-light)" style={{ margin: '0 auto 12px', opacity: 0.6 }} />
+              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem' }}>No Meeting Intelligence Yet</h4>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                Only real meetings conducted by Agent Nilesh will appear here. No demo clients.
+              </p>
+            </div>
+          ) : (
+            <AIPriorityFeed items={feedItems} />
+          )}
         </div>
       </div>
 
-      {/* Agent Activity Strip */}
+      {/* Sole Field Agent: Nilesh Somnawane */}
       <div>
         <div className="section-header">
           <span className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Users size={16} color="var(--color-brand-light)" />
-            Active Field Agents
+            Field Sales Agent
           </span>
-          {agents.length > 0 && (
-            <button className="btn btn-ghost" style={{ gap: '6px' }} onClick={() => navigate('/agents/all')}>
-              View All <ChevronRight size={14} />
-            </button>
-          )}
+          <button className="btn btn-ghost" style={{ gap: '6px' }} onClick={() => navigate('/agents/agt-nilesh-01')}>
+            Agent Portal <ChevronRight size={14} />
+          </button>
         </div>
 
-        {agents.length === 0 ? (
-          <div
-            className="card"
-            style={{
-              padding: '28px 24px',
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '10px',
-              border: '1px dashed var(--color-border)',
-              background: 'rgba(13, 20, 36, 0.4)',
-              borderRadius: 'var(--radius-lg)',
-            }}
-          >
-            <div style={{
-              width: 40,
-              height: 40,
-              borderRadius: 'var(--radius-full)',
-              background: 'rgba(99, 102, 241, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--color-brand-light)',
-            }}>
-              <Users size={20} />
-            </div>
-            <div style={{ fontWeight: 600, fontSize: '0.9375rem', color: 'var(--color-text-primary)' }}>
-              No Field Agents Active
-            </div>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)', maxWidth: 420, margin: 0, lineHeight: 1.5 }}>
-              Field agents will appear here as they start their routes and check into visit locations.
-            </p>
-            <button
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8125rem', padding: '6px 14px', marginTop: '4px', gap: '6px', display: 'inline-flex', alignItems: 'center' }}
-              onClick={() => navigate('/visits')}
-            >
-              <Calendar size={14} />
-              Plan a Visit
-            </button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '4px' }}>
-            {agents.map(agent => {
-              const firstName = agent.firstName || agent.name?.split(' ')[0] || 'Nilesh';
-              const lastName = agent.lastName || agent.name?.split(' ').slice(1).join(' ') || 'Somnawane';
-              const territory = agent.territory || 'Andheri West';
-              const agentVisits = visits.length || agent.visitsToday || 0;
-              const agentMeetings = (meetingNotes ? 1 : 0) || agent.meetingsToday || 0;
-              const agentStatus = visits.some(v => v.status === 'in_progress') ? 'IN_MEETING' : (agent.status || 'ONLINE');
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {agents.map(agent => {
+            const agentStatus = (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE';
 
-              return (
-                <div
-                  key={agent.id}
-                  className="card"
-                  style={{ minWidth: 220, cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '10px' }}
-                  onClick={() => navigate(`/agents/${agent.id}`)}
-                  id={`agent-card-${agent.id}`}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: 36, height: 36, borderRadius: 'var(--radius-full)',
-                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: '0.875rem', fontWeight: 700, color: '#fff', flexShrink: 0
-                    }}>
-                      {firstName[0]}{lastName[0]}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {firstName} {lastName}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>{territory}</div>
-                    </div>
-                    <div className={`status-dot ${agentStatus.toLowerCase().replace('_', '-')}`} />
+            return (
+              <div
+                key={agent.id}
+                className="card"
+                style={{ maxWidth: 360, width: '100%', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '12px', padding: '18px 20px' }}
+                onClick={() => navigate('/agents/agt-nilesh-01')}
+                id={`agent-card-${agent.id}`}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 'var(--radius-full)',
+                    background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '0.95rem', fontWeight: 800, color: '#fff', flexShrink: 0,
+                    boxShadow: '0 0 14px rgba(99, 102, 241, 0.4)'
+                  }}>
+                    NS
                   </div>
-
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{agentVisits}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Visits</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>
+                      Nilesh Somnawane
                     </div>
-                    <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-text-primary)' }}>{agentMeetings}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Meetings</div>
-                    </div>
-                    <div style={{ flex: 1, textAlign: 'center', padding: '6px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', color: 'var(--color-success)' }}>92</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Score</div>
-                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Delhi NCR (Dwarka Hub)</div>
                   </div>
+                  <div className={`status-dot ${agentStatus.toLowerCase().replace('_', '-')}`} />
+                </div>
 
-                  <div className={`badge ${agentStatus === 'IN_MEETING' ? 'badge-warning' : agentStatus === 'EN_ROUTE' ? 'badge-brand' : 'badge-success'}`} style={{ alignSelf: 'flex-start' }}>
-                    {agentStatus.replace('_', ' ')}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{visits.length}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Visits</div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{meetingNotes ? 1 : 0}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Meetings</div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-success)' }}>{agent.score}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Score</div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div className={`badge ${agentStatus === 'IN_MEETING' ? 'badge-warning' : 'badge-success'}`}>
+                    {agentStatus.replace('_', ' ')}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-light)', fontWeight: 600 }}>
+                    Open Portal →
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
