@@ -121,9 +121,10 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
       
       const map = L.map(mapRef.current, {
         center: [28.5921, 77.0460], // Delhi NCR (Dwarka)
-        zoom: 13,
+        zoom: 14,
         zoomControl: true,
         attributionControl: false,
+        scrollWheelZoom: false, // Prevents map from trapping mouse scrolling
       });
 
       const { url, options } = getTileConfig(activeTheme, mapsApiKey);
@@ -318,10 +319,15 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
 
       // Auto-fit bounds if we have points
       if (boundsPoints.length > 1) {
-        mapInstanceRef.current.fitBounds(L.latLngBounds(boundsPoints), {
-          padding: [60, 60],
-          maxZoom: 15,
-        });
+        const b = L.latLngBounds(boundsPoints);
+        if (b.getNorthEast().distanceTo(b.getSouthWest()) < 800) {
+          mapInstanceRef.current.setView(boundsPoints[0], 14);
+        } else {
+          mapInstanceRef.current.fitBounds(b, {
+            padding: [50, 50],
+            maxZoom: 15,
+          });
+        }
       } else if (boundsPoints.length === 1) {
         mapInstanceRef.current.setView(boundsPoints[0], 14);
       }
@@ -329,8 +335,8 @@ export default function LiveAgentMap({ agents, destinationPlace }: LiveAgentMapP
   }, [agents, destinationPlace]);
 
   return (
-    <div className="map-container" style={{ flex: 1, minHeight: 380, position: 'relative' }}>
-      <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: 380 }} id="live-agent-map" />
+    <div className="map-container" style={{ height: 380, minHeight: 380, position: 'relative' }}>
+      <div ref={mapRef} style={{ width: '100%', height: '100%' }} id="live-agent-map" />
 
       {/* Layer selector bar */}
       <div style={{

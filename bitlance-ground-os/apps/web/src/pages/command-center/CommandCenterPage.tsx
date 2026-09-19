@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, Map, Mic, Brain, TrendingUp,
-  ChevronRight, RefreshCw, Calendar, Plus, ExternalLink
+  ChevronRight, RefreshCw, Calendar, Plus, ExternalLink,
+  Clock, MapPin
 } from 'lucide-react';
 import { agentsApi } from '../../lib/api';
 import LiveAgentMap from '../../components/map/LiveAgentMap';
@@ -50,6 +51,9 @@ export default function CommandCenterPage() {
           if ((addr.includes('delhi') || addr.includes('dwarka')) && t.lat < 25) {
             t.lat = 28.5921;
             t.lng = 77.0460;
+            try {
+              localStorage.setItem('ground_os_active_visit_tracking', JSON.stringify(t));
+            } catch (err) {}
           }
           return t;
         }
@@ -138,7 +142,7 @@ export default function CommandCenterPage() {
   }, [meetingNotes, activeDestination]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', minHeight: '100%', paddingBottom: '48px' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -250,7 +254,7 @@ export default function CommandCenterPage() {
         </div>
 
         {/* AI Priority Feed */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', height: 420, maxHeight: 420, overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <span style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Brain size={16} color="var(--color-brand-light)" />
@@ -275,75 +279,207 @@ export default function CommandCenterPage() {
         </div>
       </div>
 
-      {/* Sole Field Agent: Nilesh Somnawane */}
-      <div>
-        <div className="section-header">
-          <span className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Users size={16} color="var(--color-brand-light)" />
-            Field Sales Agent
-          </span>
-          <button className="btn btn-ghost" style={{ gap: '6px' }} onClick={() => navigate('/agents/agt-nilesh-01')}>
-            Agent Portal <ChevronRight size={14} />
-          </button>
+      {/* Appointments & Active Agent Section — 2 Columns matching Dashboard Layout */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 360px',
+        gap: 'var(--space-5)',
+        alignItems: 'start',
+        marginTop: '8px',
+      }}>
+        {/* Left Column: Today's Appointments & Field Visits */}
+        <div>
+          <div className="section-header">
+            <span className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={16} color="var(--color-brand-light)" />
+              Today's Appointments & Field Visits
+            </span>
+            <button
+              className="btn btn-ghost"
+              style={{ gap: '6px' }}
+              onClick={() => navigate('/visits')}
+              id="view-all-appointments-btn"
+            >
+              View All <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {visits.length === 0 ? (
+            <div className="card" style={{ padding: '28px 20px', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
+              <Calendar size={32} color="var(--color-brand-light)" style={{ margin: '0 auto 10px', opacity: 0.6 }} />
+              <h4 style={{ margin: '0 0 6px 0', fontSize: '0.95rem' }}>No Scheduled Appointments</h4>
+              <p style={{ margin: '0 0 14px 0', fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
+                Scheduled client visits and appointments by Agent Nilesh will appear here.
+              </p>
+              <button
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8125rem', gap: '6px' }}
+                onClick={() => navigate('/visits')}
+              >
+                <Plus size={14} /> Schedule New Visit
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {visits.map((v: any) => {
+                const isCompleted = v.status === 'completed';
+                const isInProgress = v.status === 'in_progress';
+                const statusLabel = isCompleted ? 'Completed' : (isInProgress ? 'In Progress' : 'Scheduled');
+                const statusBadgeClass = isCompleted ? 'badge-success' : (isInProgress ? 'badge-warning' : 'badge-brand');
+
+                return (
+                  <div
+                    key={v.id}
+                    className="card"
+                    style={{
+                      padding: '14px 18px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '14px',
+                      borderRadius: 'var(--radius-md)',
+                      background: isInProgress
+                        ? 'linear-gradient(90deg, rgba(99, 102, 241, 0.08), rgba(244, 63, 94, 0.08))'
+                        : 'var(--color-bg-surface)',
+                      border: isInProgress
+                        ? '1px solid rgba(99, 102, 241, 0.35)'
+                        : '1px solid var(--color-border-subtle)',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
+                      <div style={{
+                        width: 40,
+                        height: 40,
+                        borderRadius: '10px',
+                        background: isInProgress ? 'rgba(99, 102, 241, 0.16)' : 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid ' + (isInProgress ? 'rgba(99, 102, 241, 0.35)' : 'rgba(255, 255, 255, 0.08)'),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '18px',
+                        flexShrink: 0,
+                      }}>
+                        🏪
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--color-text-primary)' }}>
+                            {v.business || v.customerName}
+                          </span>
+                          <span className={`badge ${statusBadgeClass}`} style={{ fontSize: '10px', padding: '1px 6px' }}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.8125rem', color: 'var(--color-text-secondary)', flexWrap: 'wrap' }}>
+                          <span>Client: <strong style={{ color: 'var(--color-text-primary)' }}>{v.customerName}</strong></span>
+                          <span>·</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Clock size={12} /> {v.time}
+                          </span>
+                          <span>·</span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <MapPin size={12} /> {v.location}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                      {isCompleted ? (
+                        <button
+                          className="btn btn-secondary"
+                          style={{ fontSize: '0.75rem', padding: '6px 12px', gap: '5px' }}
+                          onClick={() => navigate('/meetings/m1/report')}
+                        >
+                          Intel <ExternalLink size={12} />
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-ghost"
+                          style={{ fontSize: '0.75rem', padding: '6px 12px', gap: '5px', color: 'var(--color-brand-light)' }}
+                          onClick={() => navigate('/visits')}
+                        >
+                          View Visit <ChevronRight size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {agents.map(agent => {
-            const agentStatus = (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE';
+        {/* Right Column: Sole Field Agent: Nilesh Somnawane */}
+        <div>
+          <div className="section-header">
+            <span className="section-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Users size={16} color="var(--color-brand-light)" />
+              Field Sales Agent
+            </span>
+            <button className="btn btn-ghost" style={{ gap: '6px' }} onClick={() => navigate('/agents/agt-nilesh-01')}>
+              Agent Portal <ChevronRight size={14} />
+            </button>
+          </div>
 
-            return (
-              <div
-                key={agent.id}
-                className="card"
-                style={{ maxWidth: 360, width: '100%', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '12px', padding: '18px 20px' }}
-                onClick={() => navigate('/agents/agt-nilesh-01')}
-                id={`agent-card-${agent.id}`}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: 'var(--radius-full)',
-                    background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '0.95rem', fontWeight: 800, color: '#fff', flexShrink: 0,
-                    boxShadow: '0 0 14px rgba(99, 102, 241, 0.4)'
-                  }}>
-                    NS
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>
-                      Nilesh Somnawane
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {agents.map(agent => {
+              const agentStatus = (activeDestination && activeDestination.status !== 'COMPLETED') ? 'IN_MEETING' : 'ONLINE';
+
+              return (
+                <div
+                  key={agent.id}
+                  className="card"
+                  style={{ width: '100%', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: '12px', padding: '18px 20px' }}
+                  onClick={() => navigate('/agents/agt-nilesh-01')}
+                  id={`agent-card-${agent.id}`}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: 42, height: 42, borderRadius: 'var(--radius-full)',
+                      background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '0.95rem', fontWeight: 800, color: '#fff', flexShrink: 0,
+                      boxShadow: '0 0 14px rgba(99, 102, 241, 0.4)'
+                    }}>
+                      NS
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Delhi NCR (Dwarka Hub)</div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--color-text-primary)' }}>
+                        Nilesh Somnawane
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Delhi NCR (Dwarka Hub)</div>
+                    </div>
+                    <div className={`status-dot ${agentStatus.toLowerCase().replace('_', '-')}`} />
                   </div>
-                  <div className={`status-dot ${agentStatus.toLowerCase().replace('_', '-')}`} />
-                </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{visits.length}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Visits</div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{visits.length}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Visits</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{meetingNotes ? 1 : 0}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Meetings</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
+                      <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-success)' }}>{agent.score}</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Score</div>
+                    </div>
                   </div>
-                  <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-text-primary)' }}>{meetingNotes ? 1 : 0}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Meetings</div>
-                  </div>
-                  <div style={{ flex: 1, textAlign: 'center', padding: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: 'var(--radius-sm)' }}>
-                    <div style={{ fontFamily: 'var(--font-head)', fontWeight: 700, fontSize: '1.1rem', color: 'var(--color-success)' }}>{agent.score}</div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Score</div>
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div className={`badge ${agentStatus === 'IN_MEETING' ? 'badge-warning' : 'badge-success'}`}>
-                    {agentStatus.replace('_', ' ')}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className={`badge ${agentStatus === 'IN_MEETING' ? 'badge-warning' : 'badge-success'}`}>
+                      {agentStatus.replace('_', ' ')}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-light)', fontWeight: 600 }}>
+                      Open Portal →
+                    </span>
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-light)', fontWeight: 600 }}>
-                    Open Portal →
-                  </span>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
