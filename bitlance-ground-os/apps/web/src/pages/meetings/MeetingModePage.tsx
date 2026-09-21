@@ -7,6 +7,7 @@ import {
 import toast from 'react-hot-toast';
 import { evaluateMeetingTranscript, MeetingAnalysisResult } from '../../lib/meeting-evaluator';
 import PostMeetingFormModal, { PostMeetingFormData } from '../../components/meetings/PostMeetingFormModal';
+import { useAuthStore } from '../../store/auth.store';
 
 type Phase = 'arrive' | 'meeting' | 'complete';
 
@@ -20,6 +21,16 @@ export interface TranscriptUtterance {
 export default function MeetingModePage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuthStore();
+
+  // Derive agent name from authenticated user; fall back to location state or a sensible default
+  const agentName = user
+    ? `${user.firstName} ${user.lastName}`.trim()
+    : (location.state as any)?.agentName || 'Field Agent';
+
+  // Stable meeting ID for this session (avoids localStorage key collision across meetings)
+  const [meetingId] = useState(() => `m_${Date.now()}`);
+
   const [phase, setPhase] = useState<Phase>('arrive');
   const [elapsed, setElapsed] = useState(0);
   const [meetingActive, setMeetingActive] = useState(false);
@@ -51,34 +62,11 @@ export default function MeetingModePage() {
 
   // Agent Notes & Transcript State
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
-  const [meetingNotes, setMeetingNotes] = useState(() => {
-    try {
-      const saved = localStorage.getItem('meeting_notes_m1');
-      return saved ? JSON.parse(saved).notes || '' : '';
-    } catch {
-      return '';
-    }
-  });
-  const [outcomeTag, setOutcomeTag] = useState(() => {
-    try {
-      const saved = localStorage.getItem('meeting_notes_m1');
-      return saved ? JSON.parse(saved).outcome || 'Under Evaluation' : 'Under Evaluation';
-    } catch {
-      return 'Under Evaluation';
-    }
-  });
-  const [nextAction, setNextAction] = useState(() => {
-    try {
-      const saved = localStorage.getItem('meeting_notes_m1');
-      return saved ? JSON.parse(saved).nextAction || '' : '';
-    } catch {
-      return '';
-    }
-  });
+  const [meetingNotes, setMeetingNotes] = useState('');
+  const [outcomeTag, setOutcomeTag] = useState('Under Evaluation');
+  const [nextAction, setNextAction] = useState('');
   const [analysisResult, setAnalysisResult] = useState<MeetingAnalysisResult | null>(null);
-  const [notesSaved, setNotesSaved] = useState(() => {
-    return !!localStorage.getItem('meeting_notes_m1');
-  });
+  const [notesSaved, setNotesSaved] = useState(false);
 
   const handleSaveNotes = () => {
     if (!meetingNotes.trim()) {
@@ -87,7 +75,7 @@ export default function MeetingModePage() {
     }
     const currentData = (() => {
       try {
-        const item = localStorage.getItem('meeting_notes_m1');
+        const item = localStorage.getItem(`meeting_notes_${meetingId}`);
         return item ? JSON.parse(item) : {};
       } catch {
         return {};
@@ -101,11 +89,11 @@ export default function MeetingModePage() {
       nextAction: nextAction,
       businessName,
       businessOwnerName,
-      agentName: 'Nilesh Somnawane',
+      agentName,
       updatedAt: new Date().toISOString(),
     };
     try {
-      localStorage.setItem('meeting_notes_m1', JSON.stringify(payload));
+      localStorage.setItem(`meeting_notes_${meetingId}`, JSON.stringify(payload));
     } catch (e) {
       console.error(e);
     }
@@ -263,7 +251,7 @@ export default function MeetingModePage() {
                 if (w.speaker !== currentSpeaker) {
                   if (currentText.length > 0) {
                     transcriptItems.push({
-                      speaker: currentSpeaker === 0 ? 'Nilesh Somnawane (Agent)' : `${businessOwnerName} (Client)`,
+                      speaker: currentSpeaker === 0 ? `${agentName} (Agent)` : `${businessOwnerName} (Client)`,
                       role: currentSpeaker === 0 ? 'agent' : 'client',
                       text: currentText.join(' '),
                       time: startTime,
@@ -279,7 +267,7 @@ export default function MeetingModePage() {
 
               if (currentText.length > 0) {
                 transcriptItems.push({
-                  speaker: currentSpeaker === 0 ? 'Nilesh Somnawane (Agent)' : `${businessOwnerName} (Client)`,
+                  speaker: currentSpeaker === 0 ? `${agentName} (Agent)` : `${businessOwnerName} (Client)`,
                   role: currentSpeaker === 0 ? 'agent' : 'client',
                   text: currentText.join(' '),
                   time: startTime,
@@ -287,7 +275,7 @@ export default function MeetingModePage() {
               }
             } else {
               transcriptItems.push({
-                speaker: 'Nilesh Somnawane (Agent)',
+                speaker: `${agentName} (Agent)`,
                 role: 'agent',
                 text: fullRawTranscript,
                 time: '00:00',
@@ -306,7 +294,7 @@ export default function MeetingModePage() {
         fullRawTranscript = 'Hello. Hello. Hello.';
         transcriptItems = [
           {
-            speaker: 'Nilesh Somnawane (Agent)',
+            speaker: `${agentName} (Agent)`,
             role: 'agent',
             text: 'Hello. Hello.',
             time: '00:02',
@@ -316,7 +304,7 @@ export default function MeetingModePage() {
         fullRawTranscript = `Namaste ${businessOwnerName} ji, thank you for meeting today at ${businessName}. We are demonstrating the commercial inventory and customer POS suite.`;
         transcriptItems = [
           {
-            speaker: 'Nilesh Somnawane (Agent)',
+            speaker: `${agentName} (Agent)`,
             role: 'agent',
             text: `Namaste ${businessOwnerName} ji, thank you for your time today at ${businessName}.`,
             time: '00:05',
@@ -324,7 +312,7 @@ export default function MeetingModePage() {
           {
             speaker: `${businessOwnerName} (Client)`,
             role: 'client',
-            text: `Namaste Nilesh. We are interested in upgrading our billing system, but need clarification on local support SLA.`,
+            text: `Hello, we are interested in upgrading our billing system, but need clarification on local support SLA.`,
             time: '00:20',
           },
         ];
@@ -368,21 +356,30 @@ export default function MeetingModePage() {
     setIsProcessingAudio(true);
     setProcessingStatus('AI generating final meeting record...');
 
-    const evaluation = await evaluateMeetingTranscript({
-      transcriptText: pendingRawTranscript,
-      businessName,
-      clientName: businessOwnerName,
-      agentName: 'Nilesh Somnawane',
-      durationSeconds: elapsed,
-      postMeetingContext: {
-        expectedDealValue: formData.expectedDealValue,
-        followUpStatus: formData.followUpStatus,
-        followUpDate: formData.followUpDate,
-        agentObservations: formData.agentObservations,
-        keyHighlights: formData.keyHighlights,
-        productsDemoedOrDiscussed: formData.productsDemoedOrDiscussed,
-      },
-    });
+    let evaluation;
+    try {
+      evaluation = await evaluateMeetingTranscript({
+        transcriptText: pendingRawTranscript,
+        businessName,
+        clientName: businessOwnerName,
+        agentName,
+        durationSeconds: elapsed,
+        postMeetingContext: {
+          expectedDealValue: formData.expectedDealValue,
+          followUpStatus: formData.followUpStatus,
+          followUpDate: formData.followUpDate,
+          agentObservations: formData.agentObservations,
+          keyHighlights: formData.keyHighlights,
+          productsDemoedOrDiscussed: formData.productsDemoedOrDiscussed,
+        },
+      });
+    } catch (err) {
+      console.error('[MeetingMode] AI evaluation failed:', err);
+      setIsProcessingAudio(false);
+      toast.error('AI analysis failed. Please try again.');
+      setShowPostMeetingForm(true);
+      return;
+    }
 
     setAnalysisResult(evaluation);
     setOutcomeTag(evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent');
@@ -402,7 +399,7 @@ export default function MeetingModePage() {
       businessName,
       businessOwnerName,
       purposeOfVisit,
-      agentName: 'Nilesh Somnawane',
+      agentName,
       duration: formatTime(elapsed > 0 ? elapsed : 14),
       transcript: pendingTranscriptItems,
       rawTranscript: pendingRawTranscript,
@@ -425,6 +422,9 @@ export default function MeetingModePage() {
       localStorage.setItem('ground_os_pipeline_value', JSON.stringify(existing));
     }
 
+    localStorage.setItem(`meeting_notes_${meetingId}`, JSON.stringify(reportData));
+    localStorage.setItem(`meeting_transcript_${meetingId}`, JSON.stringify(pendingTranscriptItems));
+    // Keep legacy key for report pages that read 'meeting_notes_m1'
     localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
     localStorage.setItem('meeting_transcript_m1', JSON.stringify(pendingTranscriptItems));
     window.dispatchEvent(new Event('storage'));
@@ -440,13 +440,22 @@ export default function MeetingModePage() {
     setIsProcessingAudio(true);
     setProcessingStatus('AI analyzing meeting...');
 
-    const evaluation = await evaluateMeetingTranscript({
-      transcriptText: pendingRawTranscript,
-      businessName,
-      clientName: businessOwnerName,
-      agentName: 'Nilesh Somnawane',
-      durationSeconds: elapsed,
-    });
+    let evaluation;
+    try {
+      evaluation = await evaluateMeetingTranscript({
+        transcriptText: pendingRawTranscript,
+        businessName,
+        clientName: businessOwnerName,
+        agentName,
+        durationSeconds: elapsed,
+      });
+    } catch (err) {
+      console.error('[MeetingMode] AI skip evaluation failed:', err);
+      setIsProcessingAudio(false);
+      toast.error('AI analysis failed. Please try again.');
+      setShowPostMeetingForm(true);
+      return;
+    }
 
     setAnalysisResult(evaluation);
     setOutcomeTag(evaluation.intentLevel === 'LOW' ? 'Low Intent' : evaluation.intentLevel === 'MEDIUM' ? 'Moderate Intent' : 'High Intent');
@@ -466,7 +475,7 @@ export default function MeetingModePage() {
       businessName,
       businessOwnerName,
       purposeOfVisit,
-      agentName: 'Nilesh Somnawane',
+      agentName,
       duration: formatTime(elapsed > 0 ? elapsed : 14),
       transcript: pendingTranscriptItems,
       rawTranscript: pendingRawTranscript,
@@ -475,6 +484,9 @@ export default function MeetingModePage() {
       updatedAt: new Date().toISOString(),
     };
 
+    localStorage.setItem(`meeting_notes_${meetingId}`, JSON.stringify(reportData));
+    localStorage.setItem(`meeting_transcript_${meetingId}`, JSON.stringify(pendingTranscriptItems));
+    // Keep legacy key for report pages that read 'meeting_notes_m1'
     localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
     localStorage.setItem('meeting_transcript_m1', JSON.stringify(pendingTranscriptItems));
     window.dispatchEvent(new Event('storage'));
