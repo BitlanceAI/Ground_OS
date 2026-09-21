@@ -378,6 +378,8 @@ model Meeting {
   transcript   Transcript?
   insight      MeetingInsight?
 
+  @@index([organizationId, agentId])
+  @@index([customerId])
   @@map("meetings")
 }
 
@@ -691,6 +693,7 @@ model FollowUp {
 
   customer Customer @relation(fields: [customerId], references: [id])
 
+  @@index([customerId, status, dueAt])
   @@map("follow_ups")
 }
 
@@ -733,6 +736,7 @@ model Notification {
   organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId, userId])
+  @@index([organizationId, isRead])
   @@map("notifications")
 }
 
