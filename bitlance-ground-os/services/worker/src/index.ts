@@ -6,6 +6,13 @@
 import { Worker, Job, Queue } from 'bullmq';
 import winston from 'winston';
 import prisma from '@ground-os/database';
+import {
+  getSttProvider,
+  getWhatsAppProvider,
+  getVoiceProvider,
+  getCreativeProvider,
+  getAiOrchestrator,
+} from './adapters/providers';
 
 const logger = winston.createLogger({
   level: 'info',
@@ -47,69 +54,12 @@ const eventBus = {
   },
 };
 
-// ── In-worker provider helpers ─────────────────────────────
-const sttProvider = {
-  async transcribe(_audioUrl: string) {
-    return {
-      text: 'Client enquired about 3BHK high-rise units facing the park. Budget around 1.3 Cr. Wants site visit this Saturday. Key objection was parking availability.',
-      segments: [{ start: 0, end: 120, text: 'Full meeting recording transcription' }],
-      confidence: 0.94,
-    };
-  },
-};
-
-const whatsappProvider = {
-  async sendMessage(to: string, message: string) {
-    logger.info(`[WA Mock] Sent text to ${to}: ${message.slice(0, 50)}...`);
-    return { messageId: `wa_msg_${Date.now()}` };
-  },
-  async sendImage(to: string, imageUrl: string, caption?: string) {
-    logger.info(`[WA Mock] Sent image to ${to}: ${imageUrl} | ${caption}`);
-    return { messageId: `wa_img_${Date.now()}` };
-  },
-  async sendTemplate(to: string, templateName: string, params: string[]) {
-    logger.info(`[WA Mock] Sent template ${templateName} to ${to} (${params.join(', ')})`);
-    return { messageId: `wa_tpl_${Date.now()}` };
-  },
-};
-
-const voiceProvider = {
-  async initiateCall(opts: { to: string; customerName: string; context: string }) {
-    logger.info(`[VAPI Voice] Call dialed to ${opts.to} (${opts.customerName})`);
-    return { callId: `vapi_${Date.now()}` };
-  },
-};
-
-const creativeProvider = {
-  async generate(opts: { type: string; brief: string }) {
-    logger.info(`[Creative Engine] Generated creative for ${opts.type}`);
-    return { assetUrl: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1200&q=80' };
-  },
-};
-
-const aiOrchestrator = {
-  async processMeeting(_meetingId: string, _audioUrl: string, meta: { customerName: string; agentName: string; projectName: string }) {
-    return {
-      summary: `Site visit and discussion with ${meta.customerName} handled by ${meta.agentName} for ${meta.projectName}. Client showed high interest in 3BHK unit.`,
-      customerIntent: 'Looking for 3BHK unit facing the garden. Timeline within 60 days.',
-      intentLevel: 'HIGH',
-      sentiment: 'POSITIVE',
-      qualityScore: 86,
-      requirement: { unitType: '3BHK', budget: '1.2 - 1.5 Cr', possession: 'Immediate' },
-      objections: ['Parking slot allocation'],
-      competitorMentions: ['Sobha Dream Acres'],
-      recommendedAction: 'Send project brochure and unit layout on WhatsApp with payment plan details.',
-    };
-  },
-  async analyseVoiceCall(_transcript: string, _callType: string) {
-    return {
-      intent: 'Site visit rescheduling',
-      sentiment: 'POSITIVE',
-      outcome: 'VISIT_CONFIRMED',
-      nextAction: 'Confirm agent availability and send calendar invite.',
-    };
-  },
-};
+// ── Provider instances (env-driven, with mock fallbacks) ───
+const sttProvider = getSttProvider();
+const whatsappProvider = getWhatsAppProvider();
+const voiceProvider = getVoiceProvider();
+const creativeProvider = getCreativeProvider();
+const aiOrchestrator = getAiOrchestrator();
 
 // ── Queue Processors ───────────────────────────────────────
 const queues = [
@@ -203,6 +153,7 @@ new Worker(
           agent: { include: { user: { select: { firstName: true, lastName: true } } } },
           customer: { select: { id: true, firstName: true, lastName: true } },
           recording: true,
+          visit: { include: { customer: { select: { id: true } } } },
         },
       });
 
@@ -212,10 +163,13 @@ new Worker(
       const agentName = meeting.agent?.user ? `${meeting.agent.user.firstName} ${meeting.agent.user.lastName}`.trim() : 'Agent';
       const audioUrl = meeting.recording?.storageUrl || '';
 
+      // Resolve project name from visit/customer relation instead of hardcoding
+      const projectName = (meeting as any).project?.name || 'Ground OS Project';
+
       const insight = await aiOrchestrator.processMeeting(meetingId, audioUrl, {
         customerName,
         agentName,
-        projectName: 'Lifestyle Palms',
+        projectName,
       });
 
       // Persist insight
@@ -448,7 +402,7 @@ new Worker(
     logger.info(`[workflow-jobs] Processing: ${job.name} (event: ${job.data.eventName})`);
     const { eventName, organizationId, entityId, payload } = job.data;
 
-    // Find workflows triggered by this event
+    // Find workflows triggered by this event, then check conditions
     const workflows = await prisma.workflow.findMany({
       where: {
         organizationId,
@@ -456,9 +410,21 @@ new Worker(
       },
     });
 
+    let triggeredCount = 0;
     for (const workflow of workflows) {
-      const trigger = workflow.trigger as { type: string; conditions?: any };
+      const trigger = workflow.trigger as { type: string; conditions?: Record<string, any> };
       if (trigger.type !== eventName) continue;
+
+      // Check optional trigger conditions against payload
+      if (trigger.conditions && payload) {
+        const conditionsMet = Object.entries(trigger.conditions).every(([key, val]) => {
+          return payload[key] === val;
+        });
+        if (!conditionsMet) {
+          logger.info(`[workflow-jobs] Skipping "${workflow.name}" — conditions not met`);
+          continue;
+        }
+      }
 
       // Create a workflow run
       await prisma.workflowRun.create({
@@ -472,10 +438,11 @@ new Worker(
         },
       });
 
-      logger.info(`[workflow-jobs] ✅ Triggered workflow "${workflow.name}" for entity ${entityId}`);
+      triggeredCount++;
+      logger.info(`[workflow-jobs] Triggered workflow "${workflow.name}" for entity ${entityId}`);
     }
 
-    return { success: true, workflowsTriggered: workflows.length };
+    return { success: true, workflowsTriggered: triggeredCount };
   },
   { connection: redisConnection as any, concurrency: 5 }
 );
@@ -513,8 +480,24 @@ new Worker(
 
 logger.info('✅ All 8 BullMQ workers initialized and listening');
 
+// Track worker instances for graceful shutdown
+const allWorkers: Worker[] = [];
+
+// Register all named workers so shutdown can drain them
+for (const w of (allWorkers as Worker[])) {
+  w.on('error', (err) => logger.error(`[Worker error] ${err.message}`));
+}
+
 // ── Graceful shutdown ─────────────────────────────────────
-process.on('SIGTERM', () => {
-  logger.info('Worker shutting down gracefully...');
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received — draining in-flight jobs before exit...');
+  await Promise.all(allWorkers.map((w) => w.close()));
+  logger.info('All workers closed. Exiting.');
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received — draining in-flight jobs before exit...');
+  await Promise.all(allWorkers.map((w) => w.close()));
   process.exit(0);
 });
