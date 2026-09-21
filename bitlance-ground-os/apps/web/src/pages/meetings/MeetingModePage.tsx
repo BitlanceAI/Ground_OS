@@ -234,7 +234,7 @@ export default function MeetingModePage() {
 
     let transcriptItems: TranscriptUtterance[] = [];
     let fullRawTranscript = '';
-    const sttKey = import.meta.env.VITE_DEEPGRAM_API_KEY || '139452201a9c2e3ad7eec6660d55d594649e54f7';
+    const sttKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
 
     // 1. Transcribe audio
     if (recordedBlob && recordedBlob.size > 2000) {
