@@ -1,8 +1,36 @@
-import { Router, Response } from 'express';
+import express, { Router, Response } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import { aiOrchestrator } from '../../orchestrator/ai.orchestrator';
 
 const router = Router();
+
+// POST /api/v1/ai/transcribe (Proxy for Deepgram STT)
+router.post('/transcribe', express.raw({ type: ['audio/webm', 'audio/mp4', 'audio/ogg', 'audio/wav', 'audio/mp3', 'video/webm'], limit: '50mb' }), async (req: AuthenticatedRequest, res: Response) => {
+  const sttKey = process.env.DEEPGRAM_API_KEY;
+  if (!sttKey) {
+    return res.status(500).json({ success: false, message: 'Deepgram API key not configured' });
+  }
+
+  try {
+    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&paragraphs=true', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${sttKey}`,
+        'Content-Type': req.headers['content-type'] || 'audio/webm',
+      },
+      body: req.body, // The raw audio buffer
+    });
+
+    if (!response.ok) {
+      throw new Error(`Deepgram responded with ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 // GET /api/v1/ai/feed (AI Priority Feed)
 router.get('/feed', (req: AuthenticatedRequest, res: Response) => {

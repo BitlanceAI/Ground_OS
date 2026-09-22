@@ -222,22 +222,15 @@ export default function MeetingModePage() {
 
     let transcriptItems: TranscriptUtterance[] = [];
     let fullRawTranscript = '';
-    const sttKey = import.meta.env.VITE_DEEPGRAM_API_KEY;
 
     // 1. Transcribe audio
     if (recordedBlob && recordedBlob.size > 2000) {
       try {
-        const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&paragraphs=true', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${sttKey}`,
-            'Content-Type': recordedBlob.type || 'audio/webm',
-          },
-          body: recordedBlob,
-        });
+        const { aiApi } = await import('../../lib/api');
+        const data = await aiApi.transcribe(recordedBlob);
 
-        if (response.ok) {
-          const dgData = await response.json();
+        if (data.success) {
+          const dgData = data.data;
           const words = dgData?.results?.channels?.[0]?.alternatives?.[0]?.words || [];
           fullRawTranscript = dgData?.results?.channels?.[0]?.alternatives?.[0]?.transcript || '';
 

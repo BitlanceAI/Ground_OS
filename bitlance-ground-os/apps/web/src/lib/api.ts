@@ -224,6 +224,29 @@ export const creativesApi = {
     }),
 };
 
+// ── AI ───────────────────────────────────────────────────────
+export const aiApi = {
+  getFeed: () => apiFetch<ApiResponse<any[]>>('/api/v1/ai/feed'),
+  query: (query: string) => apiFetch<ApiResponse<any>>('/api/v1/ai/query', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  }),
+  transcribe: (audioBlob: Blob) => {
+    const token = getAuthToken();
+    const headers: Record<string, string> = {
+      'Content-Type': audioBlob.type || 'audio/webm',
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+    return fetch(`${API_BASE}/api/v1/ai/transcribe`, {
+      method: 'POST',
+      headers,
+      body: audioBlob,
+    }).then(res => res.json());
+  },
+};
+
 // ── Health ─────────────────────────────────────────────────
 export const healthApi = {
   check: () => apiFetch<{ status: string; service: string; timestamp: string }>('/health'),
@@ -271,5 +294,6 @@ export default {
   workflows: workflowsApi,
   analytics: analyticsApi,
   creatives: creativesApi,
+  ai: aiApi,
   health: healthApi,
 };
