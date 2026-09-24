@@ -1,28 +1,55 @@
 import { useState, useEffect } from 'react';
-import { GitBranch, Zap, Phone, MessageSquare, Brain, Clock, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
+import { GitBranch, Zap, Plus, Play, Sparkles } from 'lucide-react';
 import api from '../../lib/api';
+import VisualCanvas, { WorkflowNode, WorkflowConnection } from '../../components/canvas/VisualCanvas';
+import NodePalette from '../../components/canvas/NodePalette';
+import NodeInspector from '../../components/canvas/NodeInspector';
+import WorkflowExecutionSimulator, { SimulationLog } from '../../components/canvas/WorkflowExecutionSimulator';
 
-const ICONS: Record<string, any> = {
-  TRIGGER: Clock,
-  CONDITION: CheckCircle2,
-  AI: Brain,
-  VOICE: Phone,
-  CRM_UPDATE: CheckCircle2,
-  ANALYTICS: Zap,
-  MESSAGE: MessageSquare,
-  DELAY: Clock
-};
+const INITIAL_NODES: WorkflowNode[] = [
+  { id: 'n1', type: 'TRIGGER', label: 'Inbound Webhook Lead', x: 60, y: 160, color: '#ec4899' },
+  { id: 'n2', type: 'AI', label: 'Gemini Intent Scorer', x: 280, y: 160, color: '#6366f1' },
+  { id: 'n3', type: 'CONDITION', label: 'High Intent Lead?', x: 500, y: 160, color: '#f59e0b' },
+  { id: 'n4', type: 'VOICE', label: 'AI Voice Outreach', x: 720, y: 80, color: '#3b82f6' },
+  { id: 'n5', type: 'MESSAGE', label: 'WhatsApp Nurture', x: 720, y: 240, color: '#10b981' }
+];
+
+const INITIAL_CONNECTIONS: WorkflowConnection[] = [
+  { id: 'c1', from: 'n1', to: 'n2' },
+  { id: 'c2', from: 'n2', to: 'n3' },
+  { id: 'c3', from: 'n3', to: 'n4' },
+  { id: 'c4', from: 'n3', to: 'n5' }
+];
 
 export default function AutomationBuilderPage() {
   const [workflows, setWorkflows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Canvas state
+  const [nodes, setNodes] = useState<WorkflowNode[]>(INITIAL_NODES);
+  const [connections, setConnections] = useState<WorkflowConnection[]>(INITIAL_CONNECTIONS);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  // Simulation state
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [activeStepId, setActiveStepId] = useState<string | null>(null);
+  const [logs, setLogs] = useState<SimulationLog[]>([]);
+
   useEffect(() => {
     const loadWorkflows = async () => {
       try {
         const res = await api.workflows.list();
-        if (res.success) {
-          setWorkflows(res.data || []);
+        if (res.success && res.data && res.data.length > 0) {
+          setWorkflows(res.data);
+          // If first workflow has nodes, map them into initial state
+          if (res.data[0].nodes && res.data[0].nodes.length > 0) {
+            setNodes(res.data[0].nodes.map((n: any, idx: number) => ({
+              ...n,
+              x: n.x || 60 + idx * 220,
+              y: n.y || 160,
+              color: n.color || (idx === 0 ? '#ec4899' : '#6366f1')
+            })));
+          }
         }
       } catch (error) {
         console.error('Failed to fetch workflows:', error);
@@ -33,154 +60,182 @@ export default function AutomationBuilderPage() {
     loadWorkflows();
   }, []);
 
-  const featuredWf = workflows[0];
-  const otherWorkflows = workflows.slice(1);
+  // Node CRUD operations
+  const handleAddNode = (type: string, label: string, color: string) => {
+    const newNodeId = `node_${Date.now()}`;
+    const lastNode = nodes[nodes.length - 1];
+    const newX = lastNode ? lastNode.x + 220 : 100;
+    const newY = lastNode ? lastNode.y : 160;
 
-  // Use a fallback visual layout if no nodes are provided with x/y
-  const renderNodes = featuredWf?.nodes || [];
+    const newNode: WorkflowNode = {
+      id: newNodeId,
+      type,
+      label,
+      x: newX,
+      y: newY,
+      color
+    };
+
+    setNodes(prev => [...prev, newNode]);
+
+    // Automatically link to previous node if available
+    if (lastNode) {
+      setConnections(prev => [
+        ...prev,
+        { id: `c_${Date.now()}`, from: lastNode.id, to: newNodeId }
+      ]);
+    }
+
+    setSelectedNodeId(newNodeId);
+  };
+
+  const handleUpdateNode = (updatedNode: WorkflowNode) => {
+    setNodes(prev => prev.map(n => (n.id === updatedNode.id ? updatedNode : n)));
+  };
+
+  const handleDeleteNode = (nodeId: string) => {
+    setNodes(prev => prev.filter(n => n.id !== nodeId));
+    setConnections(prev => prev.filter(c => c.from !== nodeId && c.to !== nodeId));
+    if (selectedNodeId === nodeId) setSelectedNodeId(null);
+  };
+
+  const handleDuplicateNode = (node: WorkflowNode) => {
+    const dupId = `node_${Date.now()}`;
+    const dupNode: WorkflowNode = {
+      ...node,
+      id: dupId,
+      label: `${node.label} (Copy)`,
+      x: node.x + 40,
+      y: node.y + 40
+    };
+    setNodes(prev => [...prev, dupNode]);
+    setSelectedNodeId(dupId);
+  };
+
+  // Run Simulation Handler
+  const handleRunSimulation = async () => {
+    if (isSimulating || nodes.length === 0) return;
+
+    setIsSimulating(true);
+    setLogs([]);
+
+    for (let i = 0; i < nodes.length; i++) {
+      const currentNode = nodes[i];
+      setActiveStepId(currentNode.id);
+
+      // Set node state running
+      setNodes(prev => prev.map(n => (n.id === currentNode.id ? { ...n, status: 'running' } : n)));
+
+      const startTime = Date.now();
+
+      // Add log
+      setLogs(prev => [
+        ...prev,
+        {
+          id: `log_${Date.now()}`,
+          nodeId: currentNode.id,
+          stepName: currentNode.label,
+          status: 'running',
+          message: `Executing ${currentNode.type} step logic...`,
+          timestamp: new Date().toLocaleTimeString()
+        }
+      ]);
+
+      // Simulate execution latency
+      await new Promise(res => setTimeout(res, 1200));
+
+      const durationMs = Date.now() - startTime;
+
+      // Update log to success
+      setLogs(prev =>
+        prev.map(l =>
+          l.nodeId === currentNode.id
+            ? {
+                ...l,
+                status: 'success',
+                message: `Completed successfully (${durationMs}ms)`,
+                durationMs
+              }
+            : l
+        )
+      );
+
+      // Set node status success
+      setNodes(prev => prev.map(n => (n.id === currentNode.id ? { ...n, status: 'success' } : n)));
+    }
+
+    setIsSimulating(false);
+    setActiveStepId(null);
+  };
+
+  const selectedNode = nodes.find(n => n.id === selectedNodeId) || null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h1 style={{ fontSize: '1.5rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <GitBranch size={24} color="var(--color-brand-light)" />
-            Automation Builder
+            <GitBranch size={24} color="#818cf8" />
+            Visual Automation Builder
           </h1>
           <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem' }}>
-            No-code visual workflow orchestration for AI-driven sales automation
+            No-code visual node canvas for AI-driven multi-channel lead automation
           </p>
         </div>
-        <button className="btn btn-primary">
-          <Zap size={14} /> Create Workflow
-        </button>
+
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={handleRunSimulation}
+            disabled={isSimulating}
+            className="btn btn-primary"
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <Play size={14} fill="#ffffff" />
+            {isSimulating ? 'Simulating Workflow...' : 'Run Simulation'}
+          </button>
+        </div>
       </div>
 
-      {/* Featured Workflow Canvas */}
-      {featuredWf && (
-        <div className="card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <div>
-              <h3>{featuredWf.name}</h3>
-              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.78rem', marginTop: '2px' }}>
-                {featuredWf.description}
-              </p>
-            </div>
-            <div className={`badge ${featuredWf.active ? 'badge-success' : 'badge-neutral'}`}>
-              {featuredWf.active ? 'ACTIVE' : 'PAUSED'}
-            </div>
-          </div>
+      {/* Main Builder Grid */}
+      <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+        {/* Left / Central Canvas Area */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+          {/* Visual Node Canvas */}
+          <VisualCanvas
+            nodes={nodes}
+            connections={connections}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+            onNodesChange={setNodes}
+            onConnectionsChange={setConnections}
+            onRunSimulation={handleRunSimulation}
+            isSimulating={isSimulating}
+          />
 
-          {/* Visual Canvas */}
-          <div style={{ position: 'relative', height: 280, background: 'rgba(255,255,255,0.02)', borderRadius: '10px', overflow: 'hidden', border: '1px solid var(--color-border-subtle)' }}>
-            {/* Grid pattern */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              backgroundImage: 'radial-gradient(circle, rgba(99,102,241,0.08) 1px, transparent 1px)',
-              backgroundSize: '24px 24px',
-            }} />
+          {/* Node Palette (Step Library) */}
+          <NodePalette onAddNode={handleAddNode} />
 
-            {/* Nodes */}
-            {renderNodes.map((node: any, index: number) => {
-              const Icon = ICONS[node.type] || Zap;
-              // Provide default positions if not set
-              const posX = node.x || 20 + (index * 200);
-              const posY = node.y || 50;
-              const color = node.color || '#6366f1';
-
-              return (
-                <div
-                  key={node.id}
-                  style={{
-                    position: 'absolute',
-                    left: `${posX}px`,
-                    top: `${posY}px`,
-                    width: 140,
-                    background: 'var(--color-bg-surface)',
-                    border: `1.5px solid ${color}44`,
-                    borderRadius: '10px',
-                    padding: '12px',
-                    cursor: 'grab',
-                    boxShadow: `0 0 12px ${color}22`,
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: '6px',
-                      background: `${color}22`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0
-                    }}>
-                      <Icon size={12} color={color} />
-                    </div>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 600, color: color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      {node.type}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                    {node.label}
-                  </div>
-                </div>
-              );
-            })}
-
-            {/* Arrows — simplified generic line based on map index */}
-            <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
-              {renderNodes.map((node: any, i: number) => {
-                if (i === renderNodes.length - 1) return null;
-                const nextNode = renderNodes[i + 1];
-                const x1 = (node.x || 20 + (i * 200)) + 140;
-                const y1 = (node.y || 50) + 16;
-                const x2 = (nextNode.x || 20 + ((i + 1) * 200));
-                const y2 = (nextNode.y || 50) + 16;
-                return (
-                  <path key={i} d={`M ${x1},${y1} L ${x2},${y2}`} stroke="rgba(99,102,241,0.5)" strokeWidth="1.5" fill="none" markerEnd="url(#arrow)" />
-                );
-              })}
-              <defs>
-                <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-                  <path d="M0,0 L6,3 L0,6 Z" fill="rgba(99,102,241,0.5)" />
-                </marker>
-              </defs>
-            </svg>
-          </div>
-
-          <div style={{ display: 'flex', gap: '16px', marginTop: '16px', fontSize: '0.78rem', color: 'var(--color-text-muted)' }}>
-            <span>Triggered: {featuredWf.triggersCount} times today</span>
-            <span>Success rate: {featuredWf.conversionRate || 94}%</span>
-          </div>
+          {/* Simulation Telemetry & Logs */}
+          <WorkflowExecutionSimulator
+            logs={logs}
+            isSimulating={isSimulating}
+            activeStepId={activeStepId}
+            onClearLogs={() => setLogs([])}
+          />
         </div>
-      )}
 
-      {/* Other Workflows */}
-      {otherWorkflows.length > 0 && (
-        <div>
-          <h3 style={{ marginBottom: '14px' }}>All Workflows</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {otherWorkflows.map((w: any) => (
-              <div key={w.name} className="card" style={{ flexDirection: 'row', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <GitBranch size={16} color="var(--color-brand-light)" />
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>{w.name}</div>
-                    <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)' }}>
-                      Triggered: {w.triggersCount || 0}x today
-                    </div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                  <span className={`badge ${w.active ? 'badge-success' : 'badge-neutral'}`}>{w.active ? 'ACTIVE' : 'PAUSED'}</span>
-                  <button className="btn btn-ghost" style={{ padding: '4px 8px', fontSize: '0.75rem' }}>Edit</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      
-      {loading && <p>Loading workflows...</p>}
-      {!loading && workflows.length === 0 && <p>No workflows found.</p>}
+        {/* Right Node Inspector Drawer */}
+        {selectedNode && (
+          <NodeInspector
+            node={selectedNode}
+            onClose={() => setSelectedNodeId(null)}
+            onUpdateNode={handleUpdateNode}
+            onDeleteNode={handleDeleteNode}
+            onDuplicateNode={handleDuplicateNode}
+          />
+        )}
+      </div>
     </div>
   );
 }
