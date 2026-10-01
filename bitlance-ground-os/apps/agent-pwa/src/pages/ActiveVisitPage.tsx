@@ -29,7 +29,7 @@ export default function ActiveVisitPage() {
   const [verificationStep, setVerificationStep] = useState<VerificationStep>('unverified');
   const [otpValue, setOtpValue] = useState('');
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
-  const [geoTag, setGeoTag] = useState<{ lat: number; lng: number; accuracy: number | null } | null>(null);
+  const [geoTag, setGeoTag] = useState<{ lat: number; lng: number; accuracy: number | null; timestamp?: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Recalculate distance whenever GPS updates
@@ -51,7 +51,7 @@ export default function ActiveVisitPage() {
         setGeofenceVerified(true);
       }
     }
-  }, [gps.latitude, gps.longitude]);
+  }, [gps.latitude, gps.longitude, setDistanceMeters, setGeofenceVerified]);
 
   const handleVerifyGPS = () => {
     gps.requestGPSPosition();
@@ -92,7 +92,7 @@ export default function ActiveVisitPage() {
       const currentLng = gps.longitude ?? DESTINATION_TARGET.lng;
       const currentAcc = gps.accuracy ?? 3.5;
 
-      setGeoTag({ lat: currentLat, lng: currentLng, accuracy: currentAcc });
+      setGeoTag({ lat: currentLat, lng: currentLng, accuracy: currentAcc, timestamp: new Date().toLocaleString() });
       setVerificationStep('selfie_captured');
       toast.success(`Selfie & High-Accuracy Geo-Tag saved (±${currentAcc.toFixed(1)}m)`);
     }
@@ -276,6 +276,8 @@ export default function ActiveVisitPage() {
                 {geoTag && (
                   <div style={{ color: '#3b82f6', marginTop: '2px', fontFamily: 'monospace' }}>
                     📍 {formatCoordinates(geoTag.lat, geoTag.lng)} {geoTag.accuracy ? `(±${geoTag.accuracy.toFixed(1)}m)` : ''}
+                    <br />
+                    🕒 {geoTag.timestamp}
                   </div>
                 )}
               </div>
