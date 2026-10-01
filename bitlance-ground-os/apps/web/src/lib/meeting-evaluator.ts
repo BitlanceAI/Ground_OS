@@ -107,6 +107,9 @@ SCORING RULES (CRITICAL):
 - Commercial discussion with budget, objections, proposal commitment + agent deal value: score 65-88
 - High-intent negotiation, clear deal value, scheduled commitment, near-closed: score 85-96
 
+LANGUAGE RULE: 
+- ALWAYS write the \`summary\`, \`recommendedAction\`, and \`nextAction\` in Hinglish (a natural mix of Hindi and English, written in English script). This is crucial for local sales teams.
+
 Return ONLY valid JSON:
 {"qualityScore":0,"intentLevel":"LOW","summary":"...","objections":[{"type":"...","description":"...","severity":"LOW"}],"recommendedAction":"...","nextAction":"...","qualityBreakdown":{"rapport":0,"discovery":0,"objectionHandling":0,"closingClarity":0}}`;
 

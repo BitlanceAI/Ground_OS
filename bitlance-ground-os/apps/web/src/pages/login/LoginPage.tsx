@@ -28,7 +28,7 @@ export default function LoginPage() {
 
       if (response.ok) {
         // Assume auth store handles token storage inside login method or similar.
-        login(data.user);
+        login(data);
         toast.success('Welcome to Bitlance Ground OS');
         navigate('/command');
       } else {
@@ -44,7 +44,7 @@ export default function LoginPage() {
 
 
   return (
-    <div style={{
+    <div id="login-layout" style={{
       minHeight: '100vh',
       background: 'var(--color-bg-base)',
       display: 'grid',
@@ -52,7 +52,7 @@ export default function LoginPage() {
       overflow: 'hidden',
     }}>
       {/* Left — Branding */}
-      <div style={{
+      <div id="login-branding" style={{
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
@@ -212,6 +212,14 @@ export default function LoginPage() {
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        @media (max-width: 960px) {
+          #login-layout {
+            grid-template-columns: 1fr !important;
+          }
+          #login-branding {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

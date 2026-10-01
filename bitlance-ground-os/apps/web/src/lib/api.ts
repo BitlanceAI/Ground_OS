@@ -173,10 +173,10 @@ export const leadsApi = {
 export const whatsappApi = {
   getThreads: () => apiFetch<ApiResponse<any[]>>('/api/v1/whatsapp/threads'),
 
-  send: (to: string, message: string, mediaUrl?: string, templateName?: string) =>
+  send: (to: string, message: string, mediaUrl?: string, templateName?: string, numbers?: string[]) =>
     apiFetch<ApiResponse<any>>('/api/v1/whatsapp/send', {
       method: 'POST',
-      body: JSON.stringify({ to, message, mediaUrl, templateName }),
+      body: JSON.stringify({ to, numbers, message, mediaUrl, templateName }),
     }),
 };
 

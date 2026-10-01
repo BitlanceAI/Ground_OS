@@ -12,7 +12,7 @@ router.post('/transcribe', express.raw({ type: ['audio/webm', 'audio/mp4', 'audi
   }
 
   try {
-    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&paragraphs=true', {
+    const response = await fetch('https://api.deepgram.com/v1/listen?model=nova-2&smart_format=true&diarize=true&punctuate=true&paragraphs=true&language=hi', {
       method: 'POST',
       headers: {
         'Authorization': `Token ${sttKey}`,

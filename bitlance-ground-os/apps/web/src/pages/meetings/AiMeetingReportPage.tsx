@@ -299,31 +299,17 @@ export default function AiMeetingReportPage() {
       return;
     }
 
-    const results: Array<{ phone: string; status: 'sent' | 'fallback' | 'failed'; messageId?: string; error?: string }> = [];
-
-    // Skip Meta API attempts and force fallback to wa.me links
-    for (const phone of cleanNumbers) {
-      results.push({ phone, status: 'fallback' });
-    }
-
-
-
-    setDispatchResults(results);
-
-    // If any number requires browser fallback, open the FIRST number's chat, and leave individual quick links for remaining
-    const fallbackNumbers = results.filter(r => r.status === 'fallback');
-    if (fallbackNumbers.length > 0) {
-      const firstFallback = fallbackNumbers[0];
-      const waUrl = `https://wa.me/${firstFallback.phone}?text=${encodeURIComponent(messageText)}`;
-      window.open(waUrl, '_blank');
-      if (fallbackNumbers.length > 1) {
-        toast(`Opened WhatsApp for ${firstFallback.phone}. Click below to send to other numbers without browser popup block.`, { duration: 6000, icon: 'ℹ️' });
+    try {
+      const { whatsappApi } = await import('../../lib/api');
+      const res = await whatsappApi.send(cleanNumbers[0], messageText, undefined, undefined, cleanNumbers);
+      if (res.success || res.someSuccess) {
+        toast.success(`Report dispatched to ${cleanNumbers.length} recipient${cleanNumbers.length > 1 ? 's' : ''}!`, { duration: 4000 });
+      } else {
+        toast.error('Failed to send WhatsApp message via API.');
       }
-    }
-
-    const sentCount = results.filter(r => r.status === 'sent').length;
-    if (sentCount > 0) {
-      toast.success(`Report dispatched to ${sentCount} recipient${sentCount > 1 ? 's' : ''}!`, { duration: 4000 });
+    } catch (e) {
+      console.warn('API error sending WhatsApp report:', e);
+      toast.error('Error dispatching WhatsApp message.');
     }
 
     setReportSubmitted(true);
@@ -378,40 +364,80 @@ export default function AiMeetingReportPage() {
         </div>
 
         {/* Action Button & Resend Option */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {reportSubmitted && (
-            <button
-              onClick={handleUnlockReport}
-              className="btn btn-secondary"
-              style={{ fontSize: '0.8rem', padding: '10px 14px', gap: '6px', background: 'rgba(255,255,255,0.08)' }}
-              title="Unlock to edit numbers or re-send"
-            >
-              <RotateCw size={14} /> Re-send Report
-            </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+          {!reportSubmitted && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input 
+                type="text" 
+                placeholder="Add WhatsApp No..." 
+                value={newPhoneInput} 
+                onChange={e => setNewPhoneInput(e.target.value)}
+                className="input"
+                style={{ padding: '8px 12px', fontSize: '0.85rem', width: '220px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+              />
+              <button 
+                onClick={() => {
+                  if (newPhoneInput.trim()) {
+                    setPhoneNumbers(prev => [...prev, newPhoneInput.trim()]);
+                    setNewPhoneInput('');
+                  }
+                }}
+                className="btn btn-secondary"
+                style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+              >
+                Add Number
+              </button>
+            </div>
           )}
-          <button 
-            className="btn" 
-            onClick={handleSendToCeo}
-            disabled={sendingWhatsApp || reportSubmitted}
-            style={{ 
-              background: reportSubmitted ? '#374151' : '#25D366', 
-              color: '#fff', 
-              fontWeight: 700, 
-              fontSize: '0.9rem',
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: '8px',
-              padding: '11px 22px',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              cursor: reportSubmitted ? 'not-allowed' : 'pointer',
-              boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.35)',
-              transition: 'all 0.2s'
-            }}
-          >
-            {reportSubmitted ? <Check size={16} /> : <MessageSquare size={16} fill="#fff" />}
-            {reportSubmitted ? 'Report Submitted' : sendingWhatsApp ? 'Connecting...' : `Submit to WhatsApp (${phoneNumbers.length})`}
-          </button>
+          
+          {phoneNumbers.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-end', maxWidth: '350px' }}>
+              {phoneNumbers.map((num, idx) => (
+                <span key={idx} className="badge badge-secondary" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)' }}>
+                  {num}
+                  {!reportSubmitted && (
+                    <X size={12} style={{ cursor: 'pointer', color: 'var(--color-text-muted)' }} onClick={() => setPhoneNumbers(prev => prev.filter((_, i) => i !== idx))} />
+                  )}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+            {reportSubmitted && (
+              <button
+                onClick={handleUnlockReport}
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '10px 14px', gap: '6px', background: 'rgba(255,255,255,0.08)' }}
+                title="Unlock to edit numbers or re-send"
+              >
+                <RotateCw size={14} /> Re-send Report
+              </button>
+            )}
+            <button 
+              className="btn" 
+              onClick={handleSendToCeo}
+              disabled={sendingWhatsApp || reportSubmitted}
+              style={{ 
+                background: reportSubmitted ? '#374151' : '#25D366', 
+                color: '#fff', 
+                fontWeight: 700, 
+                fontSize: '0.9rem',
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '11px 22px',
+                borderRadius: 'var(--radius-md)',
+                border: 'none',
+                cursor: reportSubmitted ? 'not-allowed' : 'pointer',
+                boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.35)',
+                transition: 'all 0.2s'
+              }}
+            >
+              {reportSubmitted ? <Check size={16} /> : <MessageSquare size={16} fill="#fff" />}
+              {reportSubmitted ? 'Report Submitted' : sendingWhatsApp ? 'Connecting...' : `Submit to WhatsApp (${phoneNumbers.length})`}
+            </button>
+          </div>
         </div>
       </div>
 

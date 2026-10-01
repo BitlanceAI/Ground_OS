@@ -120,9 +120,13 @@ export default function MeetingModePage() {
     setWaOtpLink(waUrl);
 
     try {
+      const { accessToken } = useAuthStore.getState();
       const resp = await fetch('/api/v1/whatsapp/send-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        },
         body: JSON.stringify({
           phone: cleanPhone,
           otp,
@@ -430,9 +434,13 @@ export default function MeetingModePage() {
   const handleStartMeeting = async () => {
     setIsSubmitting(true);
     try {
-      await fetch(`http://localhost:4000/api/v1/meetings/m1/pre-start`, {
+      const { accessToken } = useAuthStore.getState();
+      await fetch(`/api/v1/meetings/m1/pre-start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {})
+        },
         body: JSON.stringify({ businessName, businessOwnerName, purposeOfVisit })
       });
     } catch (e) {

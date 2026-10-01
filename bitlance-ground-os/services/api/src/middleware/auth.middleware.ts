@@ -16,9 +16,12 @@ export function authMiddleware(req: AuthenticatedRequest, res: Response, next: N
 
   const token = authHeader.substring(7);
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'bitlance-ground-os-jwt-secret-key-development-mode-12345') as AuthUser;
-    req.user = decoded;
-    req.organizationId = decoded.organizationId;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'bitlance-ground-os-jwt-secret-key-development-mode-12345') as any;
+    req.user = {
+      ...decoded,
+      organizationId: decoded.organizationId || decoded.orgId,
+    };
+    req.organizationId = decoded.organizationId || decoded.orgId;
     next();
   } catch {
     return res.status(401).json({ error: 'Unauthorized: Invalid token' });
