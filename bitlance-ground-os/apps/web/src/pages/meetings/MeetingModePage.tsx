@@ -133,16 +133,16 @@ export default function MeetingModePage() {
       if (resp.ok) {
         const data = await resp.json();
         if (data.delivered) {
-          toast.success(`WhatsApp OTP sent via Meta Cloud API to +${cleanPhone}!`, { duration: 6000, icon: '💬' });
+          toast.success(`WhatsApp OTP sent to +${cleanPhone}!`, { duration: 6000, icon: '💬' });
         } else {
-          toast.success(`WhatsApp OTP ${otp} generated. Ready to deliver!`, { duration: 6000, icon: '💬' });
+          toast.success(`WhatsApp OTP ready to deliver!`, { duration: 6000, icon: '💬' });
         }
       } else {
-        toast.success(`WhatsApp OTP ${otp} generated.`, { duration: 6000, icon: '💬' });
+        toast.success(`WhatsApp OTP generated.`, { duration: 6000, icon: '💬' });
       }
     } catch (e) {
       console.warn('API error sending WhatsApp OTP, using fallback:', e);
-      toast.success(`WhatsApp OTP ${otp} generated for +${cleanPhone}.`, { duration: 6000, icon: '💬' });
+      toast.success(`WhatsApp OTP generated for +${cleanPhone}.`, { duration: 6000, icon: '💬' });
     } finally {
       setIsSendingOtp(false);
       setVerificationStep('otp_sent');
@@ -962,51 +962,9 @@ export default function MeetingModePage() {
                     fontSize: '0.78rem'
                   }}>
                     <span style={{ color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP: <strong style={{ color: '#fff', fontSize: '0.9rem', fontFamily: 'var(--font-mono)', background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px' }}>{generatedOtp || '1234'}</strong> sent to customer
+                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP sent to customer
                     </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {waOtpLink && (
-                        <a
-                          href={waOtpLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          style={{
-                            background: '#25D366',
-                            color: '#fff',
-                            textDecoration: 'none',
-                            borderRadius: '4px',
-                            padding: '4px 8px',
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          <Send size={11} /> Open WhatsApp
-                        </a>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const code = generatedOtp || '1234';
-                          setOtpValue(code);
-                          handleVerifyOTP(code);
-                        }}
-                        style={{
-                          background: 'rgba(255, 255, 255, 0.1)',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          color: '#fff',
-                          borderRadius: '4px',
-                          padding: '4px 8px',
-                          fontSize: '0.72rem',
-                          cursor: 'pointer',
-                          fontWeight: 700
-                        }}
-                      >
-                        Auto-fill & Verify
-                      </button>
-                    </div>
+
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>

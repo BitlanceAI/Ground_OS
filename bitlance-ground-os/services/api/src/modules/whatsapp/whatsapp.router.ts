@@ -86,7 +86,9 @@ router.post('/send-otp', async (req: AuthenticatedRequest, res: Response) => {
     `• Secure Ground GPS Audit Verification`;
 
   try {
-    const result = await provider.sendMessage(cleanPhone, otpMessage);
+    // Assuming the template name is 'verification_code' and takes one parameter (the OTP)
+    // Update the template name below if your Meta template is named differently
+    const result = await provider.sendTemplate(cleanPhone, 'verification_code', [generatedOtp]);
     res.json({
       success: true,
       delivered: true,
