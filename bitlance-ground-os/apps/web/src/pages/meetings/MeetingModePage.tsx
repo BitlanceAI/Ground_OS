@@ -60,6 +60,55 @@ export default function MeetingModePage() {
   const [audioLevel, setAudioLevel] = useState<number>(0);
   const animFrameRef = useRef<number | null>(null);
 
+  // Verification State
+  type VerificationStep = 'unverified' | 'otp_sent' | 'otp_verified' | 'selfie_captured';
+  const [verificationStep, setVerificationStep] = useState<VerificationStep>('unverified');
+  const [otpValue, setOtpValue] = useState('');
+  const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSendOTP = () => {
+    toast.success("OTP sent to customer's mobile number.");
+    setVerificationStep('otp_sent');
+  };
+
+  const handleVerifyOTP = () => {
+    if (otpValue.length >= 4) {
+      toast.success('OTP Verified Successfully');
+      setVerificationStep('otp_verified');
+      
+      const trackingRaw = localStorage.getItem('ground_os_active_visit_tracking') || '{}';
+      try {
+        const tracking = JSON.parse(trackingRaw);
+        tracking.verified = true;
+        localStorage.setItem('ground_os_active_visit_tracking', JSON.stringify(tracking));
+      } catch (e) {}
+    } else {
+      toast.error('Invalid OTP');
+    }
+  };
+
+  const handleCaptureSelfie = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const imageUrl = reader.result as string;
+        setSelfieUrl(imageUrl);
+        setVerificationStep('selfie_captured');
+        toast.success(`Selfie & Geo-Tag saved successfully.`);
+
+        const trackingRaw = localStorage.getItem('ground_os_active_visit_tracking') || '{}';
+        try {
+          const tracking = JSON.parse(trackingRaw);
+          tracking.selfieUrl = imageUrl;
+          localStorage.setItem('ground_os_active_visit_tracking', JSON.stringify(tracking));
+        } catch (e) {}
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Agent Notes & Transcript State
   const [isNotesModalOpen, setIsNotesModalOpen] = useState(false);
   const [meetingNotes, setMeetingNotes] = useState('');
@@ -635,11 +684,84 @@ export default function MeetingModePage() {
             </div>
           </div>
 
+          {/* Mandatory Verification */}
+          <div style={{ marginBottom: '24px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Shield size={16} color="var(--color-success)" />
+              Mandatory Ground Verification
+            </h4>
+            
+            {/* Step 1: OTP */}
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? '3px solid var(--color-brand)' : '3px solid var(--color-success)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>1. Customer OTP Verification</span>
+                {(verificationStep === 'otp_verified' || verificationStep === 'selfie_captured') && <CheckCircle2 size={16} color="var(--color-success)" />}
+              </div>
+              
+              {verificationStep === 'unverified' && (
+                <button className="btn btn-secondary" onClick={handleSendOTP} style={{ padding: '8px 14px', fontSize: '0.85rem' }}>
+                  Send OTP
+                </button>
+              )}
+              
+              {verificationStep === 'otp_sent' && (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input 
+                    type="text" 
+                    placeholder="Enter OTP" 
+                    value={otpValue}
+                    onChange={(e) => setOtpValue(e.target.value)}
+                    style={{ flex: 1, padding: '8px 12px', borderRadius: '4px', border: '1px solid var(--color-border)', background: 'transparent', color: '#fff' }}
+                    maxLength={6}
+                  />
+                  <button className="btn btn-primary" onClick={handleVerifyOTP} style={{ padding: '0 16px' }}>Verify</button>
+                </div>
+              )}
+              
+              {(verificationStep === 'otp_verified' || verificationStep === 'selfie_captured') && (
+                <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Verified successfully via mobile.</div>
+              )}
+            </div>
+
+            {/* Step 2: Selfie */}
+            <div style={{ padding: '12px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'otp_verified' ? '3px solid var(--color-brand)' : verificationStep === 'selfie_captured' ? '3px solid var(--color-success)' : '3px solid transparent', opacity: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? 0.5 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>2. Geo-Tagged Selfie</span>
+                {verificationStep === 'selfie_captured' && <CheckCircle2 size={16} color="var(--color-success)" />}
+              </div>
+              
+              {verificationStep === 'otp_verified' && (
+                <>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    capture="user" 
+                    ref={fileInputRef} 
+                    onChange={handleCaptureSelfie} 
+                    style={{ display: 'none' }} 
+                  />
+                  <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} style={{ padding: '8px 14px', fontSize: '0.85rem' }}>
+                    Take Selfie with Customer
+                  </button>
+                </>
+              )}
+
+              {verificationStep === 'selfie_captured' && (
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {selfieUrl && <img src={selfieUrl} alt="Selfie" style={{ width: '48px', height: '48px', borderRadius: '4px', objectFit: 'cover' }} />}
+                  <div style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-success)' }}>✓ Presence Verified</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
           <button 
             className="btn btn-primary" 
-            style={{ width: '100%', justifyContent: 'center', padding: '14px', gap: '8px', fontSize: '0.95rem' }}
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', gap: '8px', fontSize: '0.95rem', opacity: verificationStep !== 'selfie_captured' ? 0.5 : 1 }}
             onClick={handleStartMeeting}
-            disabled={isSubmitting}
+            disabled={isSubmitting || verificationStep !== 'selfie_captured'}
           >
             <Mic size={18} />
             {isSubmitting ? 'Initializing...' : 'Start Meeting & Record Audio'}

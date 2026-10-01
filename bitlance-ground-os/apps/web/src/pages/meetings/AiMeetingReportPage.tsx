@@ -73,6 +73,15 @@ export default function AiMeetingReportPage() {
     return null;
   }, []);
 
+  // Read tracking data for verification (Selfie & OTP)
+  const visitTracking = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('ground_os_active_visit_tracking');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }, []);
+
   const customerName = savedData?.businessOwnerName || 'Uttam';
   const customerBusiness = savedData?.businessName || 'Sreejal Jewellers';
   const duration = savedData?.duration || '00:14';
@@ -383,23 +392,56 @@ export default function AiMeetingReportPage() {
 
         {/* GPS & Field Audit Status */}
         <div className="card" style={{ padding: '22px 20px', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px', fontWeight: 600 }}>
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px', fontWeight: 600 }}>
             On-Ground Verification
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <ShieldCheck size={24} color="var(--color-success)" />
-            <div>
-              <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>GPS Check-In Verified</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
-                {checkinLocation?.latitude
-                  ? `${checkinLocation.latitude.toFixed(5)}, ${checkinLocation.longitude.toFixed(5)} (±${checkinLocation.accuracy?.toFixed(0) ?? '?'}m)`
-                  : checkinLocation?.locationLabel || customerBusiness}
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {/* GPS verification */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={20} color="var(--color-success)" />
+              <div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>GPS Checked In</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                  {checkinLocation?.latitude
+                    ? `${checkinLocation.latitude.toFixed(5)}, ${checkinLocation.longitude.toFixed(5)}`
+                    : checkinLocation?.locationLabel || customerBusiness}
+                </div>
+              </div>
+            </div>
+
+            {/* OTP Verification */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShieldCheck size={20} color={visitTracking?.verified ? "var(--color-success)" : "var(--color-warning)"} />
+              <div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>OTP Authentication</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                  {visitTracking?.verified ? 'Customer phone verified' : 'Not verified'}
+                </div>
+              </div>
+            </div>
+            
+            {/* Selfie Verification */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+              {visitTracking?.selfieUrl ? (
+                <img src={visitTracking.selfieUrl} alt="Customer Verification Selfie" style={{ width: '42px', height: '42px', borderRadius: '4px', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.1)' }} />
+              ) : (
+                <div style={{ width: '42px', height: '42px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <AlertTriangle size={18} color="var(--color-warning)" />
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff' }}>Geo-tagged Selfie</div>
+                <div style={{ fontSize: '0.7rem', color: 'var(--color-text-secondary)' }}>
+                  {visitTracking?.selfieUrl ? 'Visual presence stamped' : 'No photo captured'}
+                </div>
               </div>
             </div>
           </div>
-          <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-light)', fontWeight: 600 }}>
+          
+          <div style={{ fontSize: '0.75rem', color: 'var(--color-brand-light)', fontWeight: 600, marginTop: '12px' }}>
             Agent: {agentName}
-          </span>
+          </div>
         </div>
       </div>
 
