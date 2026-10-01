@@ -1,8 +1,19 @@
+import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Clock, CheckCircle2, Navigation2, ChevronRight, ShieldCheck, Camera } from 'lucide-react';
 
 export default function VisitDetailPage() {
   const navigate = useNavigate();
+
+  const verificationData = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ground_os_active_visit_tracking') || localStorage.getItem('ground_os_last_verification');
+      if (saved) return JSON.parse(saved);
+      const mtg = localStorage.getItem('meeting_notes_m1');
+      if (mtg) return JSON.parse(mtg);
+    } catch {}
+    return null;
+  }, []);
 
   const visitEvents = [
     { type: 'ASSIGNED', time: '10:00', label: 'Visit Assigned', detail: 'Aman assigned to Rajesh Electronics', color: '#6366f1' },
@@ -64,16 +75,20 @@ export default function VisitDetailPage() {
             </h3>
             
             <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-              <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: 'var(--color-bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
-                <Camera size={24} color="var(--color-text-muted)" />
-                {/* Mock image overlay */}
-                <div style={{ position: 'absolute', width: '64px', height: '64px', background: 'url(https://i.pravatar.cc/150?img=11) center/cover' }} />
+              <div style={{ width: '64px', height: '64px', borderRadius: '8px', background: 'var(--color-bg-elevated)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative', border: '2px solid var(--color-success)' }}>
+                {verificationData?.selfieUrl ? (
+                  <img src={verificationData.selfieUrl} alt="Customer Verification Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ position: 'absolute', width: '64px', height: '64px', background: 'url(https://i.pravatar.cc/150?img=11) center/cover' }} />
+                )}
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '4px', color: 'var(--color-text-primary)' }}>OTP Authenticated</div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Mobile: +91 98765 **112</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+                  Mobile: +91 {verificationData?.customerPhone ? verificationData.customerPhone.replace(/[^0-9]/g, '').slice(-10) : '98765 43210'}
+                </div>
                 <div style={{ fontSize: '0.7rem', color: 'var(--color-brand-light)', display: 'flex', gap: '4px', alignItems: 'center' }}>
-                  <MapPin size={12} /> 19.1235° N, 72.8378° E
+                  <MapPin size={12} /> {verificationData?.selfieGeo?.address || '19.1235° N, 72.8378° E'}
                 </div>
               </div>
             </div>

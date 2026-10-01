@@ -27,6 +27,15 @@ export default function AgentDetailPage() {
     }
   }, []);
 
+  const verificationData = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ground_os_active_visit_tracking') || localStorage.getItem('ground_os_last_verification');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const qualityScore = meetingNotes?.qualityScore || 88;
   const qualityBreakdown = meetingNotes?.qualityBreakdown || {
     rapport: qualityScore,
@@ -153,10 +162,18 @@ export default function AgentDetailPage() {
                     <h3 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: 700 }}>
                       {meetingNotes.businessName || 'Sreejal Jewellers'}
                     </h3>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'flex', gap: '10px', alignItems: 'center' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <span>Client: <strong style={{ color: '#fff' }}>{meetingNotes.businessOwnerName || 'Uttam'}</strong></span>
                       <span>•</span>
                       <span>Location: <strong>Dwarka Delhi</strong></span>
+                      {(meetingNotes.customerPhone || verificationData?.customerPhone) && (
+                        <>
+                          <span>•</span>
+                          <span style={{ color: 'var(--color-success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <CheckCircle2 size={13} /> Mobile: +91 {(meetingNotes.customerPhone || verificationData?.customerPhone).replace(/[^0-9]/g, '').slice(-10)}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -167,6 +184,25 @@ export default function AgentDetailPage() {
                     <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Score</div>
                   </div>
                 </div>
+
+                {/* Ground Verification Presence Stamp */}
+                {(meetingNotes.selfieUrl || verificationData?.selfieUrl) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(16, 185, 129, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                    <img 
+                      src={meetingNotes.selfieUrl || verificationData?.selfieUrl} 
+                      alt="Customer Selfie" 
+                      style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '1.5px solid var(--color-success)', flexShrink: 0 }} 
+                    />
+                    <div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-success)' }}>
+                        ✓ Ground Verified Presence & Live Geo-Stamp
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                        {meetingNotes.selfieGeoData?.address || verificationData?.selfieGeo?.address || 'Dwarka Sector 12, New Delhi'}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Summary narrative */}
                 <div style={{
