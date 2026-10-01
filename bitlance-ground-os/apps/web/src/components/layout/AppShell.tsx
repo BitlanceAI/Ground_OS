@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, MapPin, Mic, MessageSquare,
-  Phone, Palette, GitBranch, BarChart3, Brain, Settings, LogOut,
+  Phone, Palette, GitBranch, BarChart3, Brain, LogOut,
   Menu, X
 } from 'lucide-react';
 import { useState } from 'react';
@@ -113,10 +113,6 @@ export default function AppShell() {
 
         {/* Bottom */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center', paddingBottom: '32px' }}>
-          <button className="nav-item" title="Settings">
-            <Settings size={24} />
-            <span className="mobile-nav-label">Settings</span>
-          </button>
           <button className="nav-item" onClick={handleLogout} title="Logout">
             <LogOut size={24} />
             <span className="mobile-nav-label">Logout</span>

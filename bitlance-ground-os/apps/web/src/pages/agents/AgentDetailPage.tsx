@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   MapPin, Star, Clock, TrendingUp, ChevronRight, Lightbulb, 
-  FileText, CheckCircle2, User, Building, ExternalLink, Calendar
+  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, RefreshCw
 } from 'lucide-react';
 
 export default function AgentDetailPage() {
@@ -261,26 +261,80 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        <div className="card" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
-          <h3 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
-            <Lightbulb size={16} color="var(--color-ai-recommend)" /> AI Coaching Insights
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {[
-              { insight: 'Converts 38% better when commercial pricing is introduced after understanding retail counter volume.', type: 'tip' },
-              { insight: 'Territory focus on Dwarka Delhi retail hubs shows high responsiveness to POS and WhatsApp billing proposals.', type: 'positive' },
-              { insight: 'Ensure all recorded meetings conclude with a confirmed WhatsApp proposal delivery timeline.', type: 'action' },
-            ].map((c, i) => (
-              <div key={i} style={{
-                padding: '12px 14px', borderRadius: '8px',
-                background: c.type === 'positive' ? 'rgba(16,185,129,0.08)' : c.type === 'action' ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.08)',
-                border: `1px solid ${c.type === 'positive' ? 'rgba(16,185,129,0.2)' : c.type === 'action' ? 'rgba(245,158,11,0.2)' : 'rgba(99,102,241,0.2)'}`,
-              }}>
-                <p style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>{c.insight}</p>
-              </div>
-            ))}
+        <InsightsCard />
+      </div>
+    </div>
+  );
+}
+
+const allInsights = [
+  { insight: 'Converts 38% better when commercial pricing is introduced after understanding retail counter volume.', type: 'tip' as const },
+  { insight: 'Territory focus on Dwarka Delhi retail hubs shows high responsiveness to POS and WhatsApp billing proposals.', type: 'positive' as const },
+  { insight: 'Ensure all recorded meetings conclude with a confirmed WhatsApp proposal delivery timeline.', type: 'action' as const },
+  { insight: 'Clients in Sector 62–63 respond 2.4x faster when demo screenshots are shared via WhatsApp within 30 mins of the meeting.', type: 'tip' as const },
+  { insight: 'Meetings lasting 12–18 minutes show the highest conversion rates in this territory. Avoid rushing below 8 min.', type: 'positive' as const },
+  { insight: 'Repeat visits within 5 days of the first visit have a 67% higher deal closure rate than delayed follow-ups.', type: 'action' as const },
+  { insight: 'Audio transcripts flagged for "pricing objection" convert at 45% when re-pitched with EMI breakdown.', type: 'tip' as const },
+  { insight: 'Selfie verification compliance has improved agent accountability scores by 29% across the team.', type: 'positive' as const },
+  { insight: 'Schedule next-day follow-ups for leads with intent score above 70 to maximise pipeline velocity.', type: 'action' as const },
+];
+
+function InsightsCard() {
+  const [seed, setSeed] = useState(0);
+  const [spinning, setSpinning] = useState(false);
+
+  const displayed = useMemo(() => {
+    const shuffled = [...allInsights].sort(() => Math.sin(seed + 1) - 0.5);
+    return shuffled.slice(0, 3);
+  }, [seed]);
+
+  const handleRefresh = () => {
+    setSpinning(true);
+    setSeed(s => s + 1);
+    setTimeout(() => setSpinning(false), 600);
+  };
+
+  return (
+    <div className="card" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem' }}>
+          <Lightbulb size={16} color="var(--color-ai-recommend)" /> AI Coaching Insights
+        </h3>
+        <button
+          onClick={handleRefresh}
+          title="Get new insights"
+          style={{
+            background: 'rgba(99,102,241,0.1)',
+            border: '1px solid rgba(99,102,241,0.25)',
+            borderRadius: '6px',
+            padding: '5px 8px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            color: 'var(--color-brand-light)',
+            fontSize: '0.75rem',
+            fontWeight: 600,
+            transition: 'all 0.2s',
+          }}
+        >
+          <RefreshCw size={13} style={{ transition: 'transform 0.5s ease', transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)' }} />
+          Refresh
+        </button>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {displayed.map((c, i) => (
+          <div key={`${seed}-${i}`} style={{
+            padding: '12px 14px', borderRadius: '8px',
+            background: c.type === 'positive' ? 'rgba(16,185,129,0.08)' : c.type === 'action' ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.08)',
+            border: `1px solid ${c.type === 'positive' ? 'rgba(16,185,129,0.2)' : c.type === 'action' ? 'rgba(245,158,11,0.2)' : 'rgba(99,102,241,0.2)'}`,
+            animation: 'fadeInUp 0.4s ease forwards',
+            opacity: 0,
+            animationDelay: `${i * 0.1}s`,
+          }}>
+            <p style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>{c.insight}</p>
           </div>
-        </div>
+        ))}
       </div>
     </div>
   );

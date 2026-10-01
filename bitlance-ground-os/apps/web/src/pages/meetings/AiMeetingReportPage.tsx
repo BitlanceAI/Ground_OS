@@ -4,7 +4,7 @@ import {
   Brain, Send, Star, FileText, Clock, CheckCircle2, 
   Building2, MessageSquare, Copy, ExternalLink, ShieldCheck, 
   AlertTriangle, ArrowLeft, Check, Sparkles, AlertCircle, TrendingUp,
-  Play, Pause, RotateCcw, Volume2, FastForward
+  Play, Pause, RotateCcw, Volume2, FastForward, Plus, X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -18,6 +18,9 @@ interface TranscriptItem {
 export default function AiMeetingReportPage() {
   const navigate = useNavigate();
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
+  const [reportSubmitted, setReportSubmitted] = useState(() => {
+    return localStorage.getItem('ground_os_report_submitted') === 'true';
+  });
   const [copied, setCopied] = useState(false);
 
   // Audio Player State
@@ -109,10 +112,18 @@ export default function AiMeetingReportPage() {
     closingClarity: Math.max(5, qualityScore - 15),
   };
 
-  // CEO WhatsApp Phone State
-  const [ceoPhone, setCeoPhone] = useState(() => {
-    return localStorage.getItem('ground_os_ceo_whatsapp') || '919820012345';
+  // CEO WhatsApp Phone State — supports multiple numbers
+  const [phoneNumbers, setPhoneNumbers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('ground_os_ceo_whatsapp');
+      if (saved && saved.startsWith('[')) return JSON.parse(saved);
+      if (saved) return [saved];
+    } catch {}
+    return ['919820012345'];
   });
+  const [newPhoneInput, setNewPhoneInput] = useState('');
+  // Keep ceoPhone as alias for first number (used in message generation)
+  const ceoPhone = phoneNumbers[0] || '919820012345';
 
   // Calculate score colors
   const isLowScore = qualityScore < 40 || intentLevel === 'LOW';
@@ -218,40 +229,48 @@ export default function AiMeetingReportPage() {
   };
 
   const handleSendToCeo = async () => {
+    if (reportSubmitted) return;
     setSendingWhatsApp(true);
-    localStorage.setItem('ground_os_ceo_whatsapp', ceoPhone);
+    localStorage.setItem('ground_os_ceo_whatsapp', JSON.stringify(phoneNumbers));
 
     const messageText = generateWhatsAppMessage();
-    const cleanPhone = ceoPhone.replace(/[^0-9]/g, '');
-
     const phoneId = import.meta.env.VITE_WHATSAPP_PHONE_ID;
     const token = import.meta.env.VITE_WHATSAPP_GLOBAL_TOKEN;
 
-    if (phoneId && token) {
-      try {
-        await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            recipient_type: 'individual',
-            to: cleanPhone,
-            type: 'text',
-            text: { preview_url: false, body: messageText },
-          }),
-        });
-      } catch (err) {
-        console.warn('WhatsApp Cloud API direct attempt completed with error:', err);
+    // Send to ALL numbers
+    for (const phone of phoneNumbers) {
+      const cleanPhone = phone.replace(/[^0-9]/g, '');
+      if (!cleanPhone) continue;
+
+      if (phoneId && token) {
+        try {
+          await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: cleanPhone,
+              type: 'text',
+              text: { preview_url: false, body: messageText },
+            }),
+          });
+        } catch (err) {
+          console.warn('WhatsApp Cloud API direct attempt completed with error:', err);
+        }
       }
+
+      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
+      window.open(whatsappUrl, '_blank');
     }
 
-    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
-    window.open(whatsappUrl, '_blank');
-
-    toast.success('Report ready! Dispatched to CEO WhatsApp.', { duration: 3500 });
+    // Lock the button permanently
+    setReportSubmitted(true);
+    localStorage.setItem('ground_os_report_submitted', 'true');
+    toast.success(`Report dispatched to ${phoneNumbers.length} number${phoneNumbers.length > 1 ? 's' : ''}!`, { duration: 3500 });
     setSendingWhatsApp(false);
   };
 
@@ -299,9 +318,9 @@ export default function AiMeetingReportPage() {
         <button 
           className="btn" 
           onClick={handleSendToCeo}
-          disabled={sendingWhatsApp}
+          disabled={sendingWhatsApp || reportSubmitted}
           style={{ 
-            background: '#25D366', 
+            background: reportSubmitted ? '#555' : '#25D366', 
             color: '#fff', 
             fontWeight: 700, 
             fontSize: '0.9rem',
@@ -311,13 +330,13 @@ export default function AiMeetingReportPage() {
             padding: '11px 22px',
             borderRadius: 'var(--radius-md)',
             border: 'none',
-            cursor: 'pointer',
-            boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
+            cursor: reportSubmitted ? 'not-allowed' : 'pointer',
+            boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.35)',
             transition: 'all 0.2s'
           }}
         >
-          <MessageSquare size={16} fill="#fff" />
-          {sendingWhatsApp ? 'Connecting...' : 'Submit to CEO via WhatsApp'}
+          {reportSubmitted ? <Check size={16} /> : <MessageSquare size={16} fill="#fff" />}
+          {reportSubmitted ? 'Report Submitted' : sendingWhatsApp ? 'Connecting...' : 'Submit to CEO via WhatsApp'}
         </button>
       </div>
 
@@ -579,6 +598,12 @@ export default function AiMeetingReportPage() {
             <audio
               ref={audioRef}
               src={audioSrc || undefined}
+              preload="auto"
+              onLoadedMetadata={() => {
+                if (audioRef.current && audioRef.current.duration && !isNaN(audioRef.current.duration)) {
+                  setAudioDuration(audioRef.current.duration);
+                }
+              }}
               onTimeUpdate={() => {
                 if (audioRef.current) {
                   setAudioCurrentTime(audioRef.current.currentTime);
@@ -785,27 +810,83 @@ export default function AiMeetingReportPage() {
               </div>
             </div>
 
-            {/* Input Phone */}
+            {/* Input Phone Numbers — Multi-number support */}
             <div style={{ marginBottom: '16px' }}>
               <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '6px', fontWeight: 600 }}>
-                CEO WHATSAPP NUMBER
+                WHATSAPP NUMBERS ({phoneNumbers.length})
               </label>
-              <input
-                type="text"
-                value={ceoPhone}
-                onChange={(e) => setCeoPhone(e.target.value)}
-                placeholder="e.g. 919820012345"
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'rgba(0,0,0,0.3)',
-                  border: '1px solid var(--color-border-subtle)',
-                  color: '#fff',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.9rem'
-                }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '8px' }}>
+                {phoneNumbers.map((phone, idx) => (
+                  <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="text"
+                      value={phone}
+                      onChange={(e) => {
+                        const updated = [...phoneNumbers];
+                        updated[idx] = e.target.value;
+                        setPhoneNumbers(updated);
+                      }}
+                      disabled={reportSubmitted}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'rgba(0,0,0,0.3)',
+                        border: '1px solid var(--color-border-subtle)',
+                        color: '#fff',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.85rem'
+                      }}
+                    />
+                    {phoneNumbers.length > 1 && !reportSubmitted && (
+                      <button
+                        onClick={() => setPhoneNumbers(prev => prev.filter((_, i) => i !== idx))}
+                        style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '4px', padding: '6px', cursor: 'pointer', color: '#ef4444', display: 'flex', alignItems: 'center' }}
+                        title="Remove number"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {!reportSubmitted && (
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input
+                    type="text"
+                    value={newPhoneInput}
+                    onChange={(e) => setNewPhoneInput(e.target.value)}
+                    placeholder="Add another number (e.g. 919876543210)"
+                    style={{
+                      flex: 1,
+                      padding: '8px 12px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: '1px dashed var(--color-border-subtle)',
+                      color: '#fff',
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.8rem'
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newPhoneInput.trim()) {
+                        setPhoneNumbers(prev => [...prev, newPhoneInput.trim()]);
+                        setNewPhoneInput('');
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      if (newPhoneInput.trim()) {
+                        setPhoneNumbers(prev => [...prev, newPhoneInput.trim()]);
+                        setNewPhoneInput('');
+                      }
+                    }}
+                    style={{ background: 'rgba(99,102,241,0.2)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '6px', padding: '6px 10px', cursor: 'pointer', color: 'var(--color-brand-light)', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', fontWeight: 600 }}
+                  >
+                    <Plus size={14} /> Add
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Message Preview */}
@@ -834,30 +915,30 @@ export default function AiMeetingReportPage() {
             {/* Dispatch Button */}
             <button
               onClick={handleSendToCeo}
-              disabled={sendingWhatsApp}
+              disabled={sendingWhatsApp || reportSubmitted}
               style={{
                 width: '100%',
-                background: '#25D366',
+                background: reportSubmitted ? '#555' : '#25D366',
                 color: '#fff',
                 fontWeight: 700,
                 padding: '12px',
                 borderRadius: 'var(--radius-md)',
                 border: 'none',
-                cursor: 'pointer',
+                cursor: reportSubmitted ? 'not-allowed' : 'pointer',
                 fontSize: '0.9rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 14px rgba(37, 211, 102, 0.4)'
+                boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.4)'
               }}
             >
-              <Send size={16} />
-              {sendingWhatsApp ? 'Dispatching...' : 'Send to CEO WhatsApp'}
+              {reportSubmitted ? <Check size={16} /> : <Send size={16} />}
+              {reportSubmitted ? 'Report Has Been Submitted' : sendingWhatsApp ? 'Dispatching...' : `Send to ${phoneNumbers.length} Number${phoneNumbers.length > 1 ? 's' : ''}`}
             </button>
 
             <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '12px', margin: '12px 0 0 0' }}>
-              Opens directly in WhatsApp Web / App with pre-filled briefing.
+              {reportSubmitted ? 'Report already dispatched. No further submissions allowed.' : 'Opens directly in WhatsApp Web / App with pre-filled briefing.'}
             </p>
           </div>
         </div>
