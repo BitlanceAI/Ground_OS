@@ -4,21 +4,7 @@ import { Eye, EyeOff, Zap, ArrowRight, Shield } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import toast from 'react-hot-toast';
 
-// Mock login response
-const MOCK_USERS: Record<string, any> = {
-  'bitlanceai@gmail.com': {
-    password: 'admin@123',
-    user: { id: 'u1', organizationId: 'org1', email: 'bitlanceai@gmail.com', firstName: 'Admin', lastName: 'Bitlance', role: 'admin' },
-    organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
-    tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
-  },
-  'agent@gmail.com': {
-    password: 'agent@123',
-    user: { id: 'u3', organizationId: 'org1', email: 'agent@gmail.com', firstName: 'Agent', lastName: 'User', role: 'agent' },
-    organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
-    tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
-  },
-};
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -32,18 +18,27 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    await new Promise(r => setTimeout(r, 800));
+    try {
+      const response = await fetch('/api/v1/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
 
-    const mockData = MOCK_USERS[email];
-    if (mockData && password === mockData.password) {
-      const { password: _, ...userData } = mockData;
-      login(userData as any);
-      toast.success('Welcome to Bitlance Ground OS');
-      navigate('/command');
-    } else {
-      toast.error('Invalid credentials.');
+      if (response.ok) {
+        // Assume auth store handles token storage inside login method or similar.
+        login(data.user);
+        toast.success('Welcome to Bitlance Ground OS');
+        navigate('/command');
+      } else {
+        toast.error(data.message || 'Invalid credentials.');
+      }
+    } catch (err) {
+      toast.error('Login failed.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
 

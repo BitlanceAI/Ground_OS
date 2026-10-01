@@ -1,10 +1,17 @@
-import { Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import { Compass, Calendar, Mic, FileText, UserCheck } from 'lucide-react';
 import DashboardPage from './pages/DashboardPage';
 import ActiveVisitPage from './pages/ActiveVisitPage';
 import MeetingWorkspacePage from './pages/MeetingWorkspacePage';
 import ReportViewerPage from './pages/ReportViewerPage';
 import CustomerLitePage from './pages/CustomerLitePage';
+
+const RequireAuth = ({ children }: { children: JSX.Element }) => {
+  // Simple check for token
+  const token = localStorage.getItem('auth-storage');
+  if (!token) return <Navigate to="/login" />;
+  return children;
+};
 
 export default function App() {
   return (
@@ -41,11 +48,12 @@ export default function App() {
       {/* Main App Content */}
       <main className="pwa-content">
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/visit/:visitId" element={<ActiveVisitPage />} />
-          <Route path="/meeting/:meetingId" element={<MeetingWorkspacePage />} />
-          <Route path="/report/:meetingId" element={<ReportViewerPage />} />
-          <Route path="/customer/:customerId" element={<CustomerLitePage />} />
+          <Route path="/login" element={<div style={{ padding: 20 }}>Login required</div>} />
+          <Route path="/" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+          <Route path="/visit/:visitId" element={<RequireAuth><ActiveVisitPage /></RequireAuth>} />
+          <Route path="/meeting/:meetingId" element={<RequireAuth><MeetingWorkspacePage /></RequireAuth>} />
+          <Route path="/report/:meetingId" element={<RequireAuth><ReportViewerPage /></RequireAuth>} />
+          <Route path="/customer/:customerId" element={<RequireAuth><CustomerLitePage /></RequireAuth>} />
         </Routes>
       </main>
 
@@ -55,19 +63,19 @@ export default function App() {
           <Calendar size={20} />
           <span>Today</span>
         </NavLink>
-        <NavLink to="/visit/vis-001" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/visits" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Compass size={20} />
           <span>Active</span>
         </NavLink>
-        <NavLink to="/meeting/mtg-001" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/meetings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <Mic size={20} />
           <span>Record</span>
         </NavLink>
-        <NavLink to="/report/mtg-001" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/reports" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <FileText size={20} />
           <span>AI Report</span>
         </NavLink>
-        <NavLink to="/customer/cust-rajesh-01" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+        <NavLink to="/customers" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
           <UserCheck size={20} />
           <span>Profile</span>
         </NavLink>

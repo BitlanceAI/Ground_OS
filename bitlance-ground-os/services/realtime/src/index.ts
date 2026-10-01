@@ -6,6 +6,7 @@
 
 import { WebSocketServer, WebSocket } from 'ws';
 import IORedis from 'ioredis';
+import jwt from 'jsonwebtoken';
 
 const PORT = parseInt(process.env.REALTIME_PORT || '4001', 10);
 const wss = new WebSocketServer({ port: PORT });
@@ -71,10 +72,11 @@ function initRedisSubscriber() {
 }
 
 // ── Broadcast to all connected clients ─────────────────────
-function broadcast(data: object, excludeWs?: WebSocket) {
+function broadcast(data: any, excludeWs?: WebSocket) {
   const payload = JSON.stringify(data);
-  for (const [ws, _client] of clients) {
+  for (const [ws, client] of clients) {
     if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
+      if (data.organizationId && client.organizationId !== data.organizationId) continue;
       try {
         ws.send(payload);
       } catch (err) {
@@ -104,21 +106,38 @@ wss.on('connection', (ws) => {
 
       // Handle client auth/subscription
       if (data.type === 'AUTH') {
-        client.organizationId = data.organizationId;
-        client.agentId = data.agentId;
-        console.log(`[Realtime] Client authenticated: org=${data.organizationId}, agent=${data.agentId}`);
+        const token = data.token;
+        if (!token) {
+          ws.send(JSON.stringify({ type: 'ERROR', message: 'Token required' }));
+          return;
+        }
+        try {
+          const secret = process.env.JWT_SECRET || 'bitlance-ground-os-jwt-secret-key-development-mode-12345';
+          const decoded = jwt.verify(token, secret) as any;
+          client.organizationId = decoded.orgId || decoded.organizationId;
+          client.agentId = decoded.sub || decoded.id;
+          console.log(`[Realtime] Client authenticated: org=${client.organizationId}, agent=${client.agentId}`);
+        } catch (err) {
+          ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid token' }));
+        }
         return;
+      }
+
+      // Require auth for other messages
+      if (!client.organizationId) {
+         ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthenticated' }));
+         return;
       }
 
       // Agent pushes location from PWA — forward to dashboard clients
       if (data.type === 'AGENT_LOCATION_UPDATE') {
-        broadcast(data, ws);
+        broadcast({ ...data, organizationId: client.organizationId }, ws);
         return;
       }
 
       // Visit status changes from Agent PWA
       if (data.type === 'VISIT_STATUS_CHANGED') {
-        broadcast(data, ws);
+        broadcast({ ...data, organizationId: client.organizationId }, ws);
         return;
       }
     } catch (err) {
@@ -137,33 +156,8 @@ wss.on('connection', (ws) => {
   });
 });
 
-// ── Mock telemetry (when Redis unavailable) ─────────────────
-const mockAgents = [
-  { id: 'agt-aman-01', firstName: 'Aman', status: 'IN_MEETING', baseLat: 28.5355, baseLng: 77.3910 },
-  { id: 'agt-priya-02', firstName: 'Priya', status: 'EN_ROUTE', baseLat: 28.5390, baseLng: 77.3820 },
-  { id: 'agt-rohit-03', firstName: 'Rohit', status: 'ONLINE', baseLat: 28.5440, baseLng: 77.4010 },
-];
-
 setInterval(() => {
   if (clients.size === 0) return;
-
-  if (usingMockTelemetry) {
-    // Simulate live GPS telemetry when Redis is down
-    broadcast({
-      type: 'LIVE_TELEMETRY_PULSE',
-      timestamp: new Date().toISOString(),
-      _mock: true,
-      agents: mockAgents.map(a => ({
-        id: a.id,
-        firstName: a.firstName,
-        lat: a.baseLat + (Math.random() - 0.5) * 0.0005,
-        lng: a.baseLng + (Math.random() - 0.5) * 0.0005,
-        status: a.status,
-      })),
-    });
-  }
-
-  // Always send a heartbeat ping
   broadcast({ type: 'HEARTBEAT', timestamp: new Date().toISOString(), connectedClients: clients.size });
 }, 5000);
 

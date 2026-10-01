@@ -12,52 +12,9 @@ import prisma from '@ground-os/database';
 const router = Router();
 const mapsProvider = getMapsProvider();
 
-// ── Mock fallback data ─────────────────────────────────────
-const mockVisits = [
-  {
-    id: 'vis-001',
-    agentId: 'agt-aman-01',
-    agentName: 'Aman Sharma',
-    customerId: 'cust-rajesh-01',
-    customerName: 'Rajesh Kumar',
-    businessName: 'Rajesh Electronics & Appliances',
-    destination: {
-      address: 'Shop 14, Galaxy Plaza, Sector 62, Noida',
-      latitude: 28.5355,
-      longitude: 77.3910,
-    },
-    status: 'IN_MEETING',
-    scheduledAt: new Date(Date.now() - 3600000).toISOString(),
-    arrivedAt: new Date(Date.now() - 2400000).toISOString(),
-    meetingStartedAt: new Date(Date.now() - 2000000).toISOString(),
-    meetingId: 'mtg-001',
-    geofenceVerified: true,
-    distanceAtCheckInMeters: 8,
-    purpose: '3BHK Buyer Consultation & Floorplan Walkthrough',
-    notes: 'Inquired via WhatsApp Meta campaign. Looking for self-use property.',
-  },
-  {
-    id: 'vis-002',
-    agentId: 'agt-priya-02',
-    agentName: 'Priya Mehta',
-    customerId: 'cust-pooja-02',
-    customerName: 'Pooja Gupta',
-    businessName: 'Fintech Solutions',
-    destination: {
-      address: 'Tower 4, Advant Navis, Sector 142, Noida',
-      latitude: 28.5390,
-      longitude: 77.3820,
-    },
-    status: 'EN_ROUTE',
-    scheduledAt: new Date(Date.now() + 1800000).toISOString(),
-    geofenceVerified: false,
-    purpose: 'Luxury High-Rise Presentation & ROI Breakdown',
-  }
-];
-
 // ── Helpers ────────────────────────────────────────────────
 function getOrgId(req: AuthenticatedRequest): string {
-  return (req as any).user?.orgId || 'org-demo-001';
+  return req.organizationId!;
 }
 
 // ── GET /api/v1/visits ─────────────────────────────────────
@@ -89,9 +46,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
     return res.json({ success: true, data: visits });
   } catch (err) {
-    console.warn('[Visits] DB unavailable, using mock data:', (err as Error).message);
-    const filtered = agentId ? mockVisits.filter(v => v.agentId === agentId) : mockVisits;
-    return res.json({ success: true, data: filtered, _mock: true });
+    console.error('[Visits] DB error:', (err as Error).message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
@@ -108,15 +64,14 @@ router.get('/:visitId', async (req: AuthenticatedRequest, res: Response) => {
       },
     });
 
-    if (!visit) {
+    if (!visit || visit.organizationId !== req.organizationId) {
       return res.status(404).json({ success: false, message: 'Visit not found' });
     }
 
     return res.json({ success: true, data: visit });
   } catch (err) {
-    console.warn('[Visits] DB unavailable, using mock:', (err as Error).message);
-    const visit = mockVisits.find(v => v.id === req.params.visitId) || mockVisits[0];
-    return res.json({ success: true, data: visit, _mock: true });
+    console.error('[Visits] DB error:', (err as Error).message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
@@ -167,7 +122,7 @@ router.post('/:visitId/arrive', async (req: AuthenticatedRequest, res: Response)
 
   try {
     const visit = await prisma.visit.findUnique({ where: { id: req.params.visitId } });
-    if (!visit) return res.status(404).json({ success: false, message: 'Visit not found' });
+    if (!visit || visit.organizationId !== orgId) return res.status(404).json({ success: false, message: 'Visit not found' });
 
     // Geofence check
     let geofenceVerified = false;
@@ -180,6 +135,9 @@ router.post('/:visitId/arrive', async (req: AuthenticatedRequest, res: Response)
       );
       distanceAtCheckInMeters = distance;
       geofenceVerified = distance <= 200; // 200m geofence radius
+      if (!geofenceVerified) {
+        return res.status(403).json({ success: false, message: 'Geofence check failed' });
+      }
     } else {
       // No destination set — auto-verify
       geofenceVerified = true;
@@ -214,14 +172,8 @@ router.post('/:visitId/arrive', async (req: AuthenticatedRequest, res: Response)
 
     return res.json({ success: true, data: updated, geofenceVerified, distanceAtCheckInMeters });
   } catch (err) {
-    console.warn('[Visits] Arrive failed, mock response:', (err as Error).message);
-    return res.json({
-      success: true,
-      data: { ...mockVisits[0], status: 'ARRIVED', arrivedAt: new Date().toISOString() },
-      geofenceVerified: true,
-      distanceAtCheckInMeters: 12,
-      _mock: true,
-    });
+    console.error('[Visits] Arrive failed:', (err as Error).message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
@@ -231,7 +183,7 @@ router.post('/:visitId/start-meeting', async (req: AuthenticatedRequest, res: Re
 
   try {
     const visit = await prisma.visit.findUnique({ where: { id: req.params.visitId } });
-    if (!visit) return res.status(404).json({ success: false, message: 'Visit not found' });
+    if (!visit || visit.organizationId !== orgId) return res.status(404).json({ success: false, message: 'Visit not found' });
 
     // Create meeting record
     const meeting = await prisma.meeting.create({
@@ -266,20 +218,14 @@ router.post('/:visitId/start-meeting', async (req: AuthenticatedRequest, res: Re
 
     return res.json({ success: true, data: { visit: { ...visit, status: 'MEETING_STARTED' }, meeting } });
   } catch (err) {
-    console.warn('[Visits] Start meeting failed, mock response:', (err as Error).message);
-    return res.json({
-      success: true,
-      data: {
-        visit: { ...mockVisits[0], status: 'MEETING_STARTED' },
-        meeting: { id: 'mtg-mock-001', status: 'STARTED' },
-      },
-      _mock: true,
-    });
+    console.error('[Visits] Start meeting failed:', (err as Error).message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 
 // ── POST /api/v1/visits/:visitId/status ───────────────────
 router.post('/:visitId/status', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = getOrgId(req);
   const { status } = req.body;
   const validTransitions: Record<string, string[]> = {
     ASSIGNED: ['EN_ROUTE', 'CANCELLED'],
@@ -293,7 +239,7 @@ router.post('/:visitId/status', async (req: AuthenticatedRequest, res: Response)
 
   try {
     const visit = await prisma.visit.findUnique({ where: { id: req.params.visitId } });
-    if (!visit) return res.status(404).json({ success: false, message: 'Visit not found' });
+    if (!visit || visit.organizationId !== orgId) return res.status(404).json({ success: false, message: 'Visit not found' });
 
     const allowed = validTransitions[visit.status] || [];
     if (!allowed.includes(status)) {
@@ -310,8 +256,8 @@ router.post('/:visitId/status', async (req: AuthenticatedRequest, res: Response)
 
     return res.json({ success: true, data: updated });
   } catch (err) {
-    console.warn('[Visits] Status update, mock:', (err as Error).message);
-    return res.json({ success: true, data: { ...mockVisits[0], status }, _mock: true });
+    console.error('[Visits] Status update failed:', (err as Error).message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
 

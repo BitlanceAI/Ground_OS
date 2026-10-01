@@ -20,33 +20,6 @@ router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
-    // Provide instant fallback demo user if database not yet migrated locally
-    if (email === 'aman.sharma@lifestylehomes.com' || email === 'demo@lifestylehomes.com') {
-      const demoUser = {
-        id: 'usr-demo-001',
-        organizationId: 'org-demo-001',
-        email,
-        firstName: 'Aman',
-        lastName: 'Sharma',
-        role: 'SALES_MANAGER',
-      };
-      const secret = process.env.JWT_SECRET || 'bitlance-ground-os-jwt-secret-key-development-mode-12345';
-      const refreshSecret = process.env.JWT_REFRESH_SECRET || 'bitlance-ground-os-jwt-refresh-secret-development-67890';
-      
-      const accessToken = jwt.sign(demoUser, secret, { expiresIn: '15m' as any });
-      const refreshToken = jwt.sign({ sub: demoUser.id }, refreshSecret, { expiresIn: '7d' as any });
-
-      return res.json({
-        user: demoUser,
-        organization: {
-          id: 'org-demo-001',
-          name: 'Lifestyle Homes',
-          slug: 'lifestyle-homes',
-        },
-        tokens: { accessToken, refreshToken, expiresIn: 900 },
-      });
-    }
-
     try {
       const user = await prisma.user.findUnique({
         where: { email },
@@ -96,24 +69,7 @@ router.post('/login', async (req: Request, res: Response) => {
         tokens: { accessToken, refreshToken, expiresIn: 900 },
       });
     } catch (dbErr) {
-      // Fallback response for mock-first demo
-      const demoUser = {
-        id: 'usr-demo-001',
-        organizationId: 'org-demo-001',
-        email,
-        firstName: 'Aman',
-        lastName: 'Sharma',
-        role: 'SALES_MANAGER',
-      };
-      const secret = process.env.JWT_SECRET || 'bitlance-ground-os-jwt-secret-key-development-mode-12345';
-      const accessToken = jwt.sign(demoUser, secret, { expiresIn: '15m' as any });
-      const refreshToken = jwt.sign({ sub: demoUser.id }, secret, { expiresIn: '7d' as any });
-
-      return res.json({
-        user: demoUser,
-        organization: { id: 'org-demo-001', name: 'Lifestyle Homes', slug: 'lifestyle-homes' },
-        tokens: { accessToken, refreshToken, expiresIn: 900 },
-      });
+      return res.status(500).json({ message: 'Database error' });
     }
   } catch (err) {
     if (err instanceof z.ZodError) {
@@ -132,8 +88,11 @@ router.post('/refresh', async (req: Request, res: Response) => {
     const secret = process.env.JWT_SECRET || 'bitlance-ground-os-jwt-secret-key-development-mode-12345';
     const payload = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || secret) as { sub: string };
 
+    const user = await prisma.user.findUnique({ where: { id: payload.sub } });
+    if (!user || !user.isActive) return res.status(401).json({ message: 'Invalid user' });
+
     const accessToken = jwt.sign(
-      { sub: payload.sub, orgId: 'org-demo-001', role: 'SALES_MANAGER' },
+      { sub: user.id, orgId: user.organizationId, role: user.role },
       secret,
       { expiresIn: '15m' as any }
     );
@@ -151,18 +110,14 @@ router.post('/logout', async (req: Request, res: Response) => {
 
 // GET /api/v1/auth/me — protected
 router.get('/me', async (req: Request, res: Response) => {
-  const user = (req as any).user || {
-    id: 'usr-demo-001',
-    organizationId: 'org-demo-001',
-    email: 'aman.sharma@lifestylehomes.com',
-    firstName: 'Aman',
-    lastName: 'Sharma',
-    role: 'SALES_MANAGER',
-  };
+  const user = (req as any).user;
+  if (!user) return res.status(401).json({ message: 'Unauthorized' });
+
+  const organization = await prisma.organization.findUnique({ where: { id: user.organizationId } });
 
   return res.json({
     user,
-    organization: { id: 'org-demo-001', name: 'Lifestyle Homes', slug: 'lifestyle-homes' },
+    organization,
   });
 });
 
