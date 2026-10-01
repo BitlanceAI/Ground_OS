@@ -15,6 +15,7 @@ export interface Visit {
   location: string;
   lat?: number;
   lng?: number;
+  date?: string;
   time: string;
   status: 'upcoming' | 'completed' | 'in_progress';
   type: string;
@@ -94,7 +95,8 @@ export default function VisitsListPage() {
   const [business, setBusiness] = useState('');
   const [phone, setPhone] = useState('');
   const [location, setLocation] = useState('');
-  const [time, setTime] = useState('17:30 PM');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
   const [type, setType] = useState('Site Visit');
   const [priority, setPriority] = useState<'HIGH' | 'MEDIUM' | 'NORMAL'>('HIGH');
   const [notes, setNotes] = useState('');
@@ -172,7 +174,8 @@ export default function VisitsListPage() {
       location: location.trim(),
       lat: coords.lat,
       lng: coords.lng,
-      time: time.trim() || '17:30 PM',
+      date: date.trim() || new Date().toISOString().split('T')[0],
+      time: time.trim() || '17:30',
       status: 'upcoming',
       type,
       phone: phone.trim(),
@@ -191,7 +194,8 @@ export default function VisitsListPage() {
     setLocation('');
     setSelectedCoords(null);
     setSuggestions([]);
-    setTime('17:30 PM');
+    setDate('');
+    setTime('');
     setNotes('');
   };
 
@@ -339,6 +343,11 @@ export default function VisitsListPage() {
                     <div style={{ color: 'var(--color-brand-light)', fontWeight: 700, fontSize: '1.1rem' }}>
                       {visit.time}
                     </div>
+                    {visit.date && (
+                      <div style={{ color: 'var(--color-text-secondary)', fontSize: '0.75rem', marginTop: '2px' }}>
+                        {visit.date}
+                      </div>
+                    )}
                     <div style={{ 
                       color: 'var(--color-text-secondary)', 
                       fontSize: '0.75rem', 
@@ -592,6 +601,32 @@ export default function VisitsListPage() {
                     placeholder="+91 98318 76890" 
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                    <Calendar size={14} /> Scheduled Date
+                  </label>
+                  <input 
+                    type="date" 
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
+                    <Clock size={14} /> Scheduled Time
+                  </label>
+                  <input 
+                    type="time" 
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem' }}
                   />
                 </div>
