@@ -5,7 +5,7 @@ import {
   Building2, MessageSquare, Copy, ExternalLink, ShieldCheck, 
   AlertTriangle, ArrowLeft, Check, Sparkles, AlertCircle, TrendingUp,
   Play, Pause, RotateCcw, Volume2, FastForward, Plus, X,
-  Camera, Phone, MapPin, Maximize2, Shield
+  Camera, Phone, MapPin, Maximize2, Shield, RotateCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -284,23 +284,62 @@ export default function AiMeetingReportPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const [dispatchResults, setDispatchResults] = useState<Array<{ phone: string; status: 'sent' | 'fallback' | 'failed'; messageId?: string; error?: string }>>([]);
+
   const handleSendToCeo = async () => {
-    if (reportSubmitted) return;
     setSendingWhatsApp(true);
     localStorage.setItem('ground_os_ceo_whatsapp', JSON.stringify(phoneNumbers));
 
     const messageText = generateWhatsAppMessage();
-    const phoneId = import.meta.env.VITE_WHATSAPP_PHONE_ID;
-    const token = import.meta.env.VITE_WHATSAPP_GLOBAL_TOKEN;
+    const cleanNumbers = phoneNumbers.map(p => p.replace(/[^0-9]/g, '')).filter(Boolean);
 
-    // Send to ALL numbers
-    for (const phone of phoneNumbers) {
-      const cleanPhone = phone.replace(/[^0-9]/g, '');
-      if (!cleanPhone) continue;
+    if (cleanNumbers.length === 0) {
+      toast.error('Please enter at least one recipient phone number.');
+      setSendingWhatsApp(false);
+      return;
+    }
+
+    const results: Array<{ phone: string; status: 'sent' | 'fallback' | 'failed'; messageId?: string; error?: string }> = [];
+
+    // Attempt 1: Call Backend API which uses Meta Verified WhatsApp Cloud credentials
+    try {
+      const resp = await fetch('/api/v1/whatsapp/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numbers: cleanNumbers,
+          message: messageText,
+        }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.results && Array.isArray(data.results)) {
+          for (const item of data.results) {
+            results.push({
+              phone: item.phone,
+              status: item.status === 'sent' ? 'sent' : 'fallback',
+              messageId: item.messageId,
+              error: item.error,
+            });
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('Backend WhatsApp API dispatch error, checking frontend Meta API fallback:', apiErr);
+    }
+
+    // Attempt 2: If backend returned fallback or was unreachable, attempt direct Meta Cloud API or prepare web links
+    const phoneId = import.meta.env.VITE_WHATSAPP_PHONE_ID;
+    const token = import.meta.env.VITE_WHATSAPP_ACCESS_TOKEN || import.meta.env.VITE_WHATSAPP_GLOBAL_TOKEN;
+
+    for (const phone of cleanNumbers) {
+      const existing = results.find(r => r.phone === phone);
+      if (existing && existing.status === 'sent') continue;
 
       if (phoneId && token) {
         try {
-          await fetch(`https://graph.facebook.com/v18.0/${phoneId}/messages`, {
+          const directResp = await fetch(`https://graph.facebook.com/v20.0/${phoneId}/messages`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -309,25 +348,63 @@ export default function AiMeetingReportPage() {
             body: JSON.stringify({
               messaging_product: 'whatsapp',
               recipient_type: 'individual',
-              to: cleanPhone,
+              to: phone,
               type: 'text',
               text: { preview_url: false, body: messageText },
             }),
           });
-        } catch (err) {
-          console.warn('WhatsApp Cloud API direct attempt completed with error:', err);
+          if (directResp.ok) {
+            const directData = await directResp.json();
+            const msgId = directData?.messages?.[0]?.id || `meta_${Date.now()}`;
+            const idx = results.findIndex(r => r.phone === phone);
+            if (idx >= 0) {
+              results[idx] = { phone, status: 'sent', messageId: msgId };
+            } else {
+              results.push({ phone, status: 'sent', messageId: msgId });
+            }
+            continue;
+          }
+        } catch (directErr) {
+          console.warn(`Direct Meta API attempt for ${phone} error:`, directErr);
         }
       }
 
-      const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(messageText)}`;
-      window.open(whatsappUrl, '_blank');
+      // If neither API succeeded, mark as fallback
+      const idx = results.findIndex(r => r.phone === phone);
+      if (idx >= 0) {
+        results[idx].status = 'fallback';
+      } else {
+        results.push({ phone, status: 'fallback' });
+      }
     }
 
-    // Lock the button permanently
+    setDispatchResults(results);
+
+    // If any number requires browser fallback, open the FIRST number's chat, and leave individual quick links for remaining
+    const fallbackNumbers = results.filter(r => r.status === 'fallback');
+    if (fallbackNumbers.length > 0) {
+      const firstFallback = fallbackNumbers[0];
+      const waUrl = `https://wa.me/${firstFallback.phone}?text=${encodeURIComponent(messageText)}`;
+      window.open(waUrl, '_blank');
+      if (fallbackNumbers.length > 1) {
+        toast(`Opened WhatsApp for ${firstFallback.phone}. Click below to send to other numbers without browser popup block.`, { duration: 6000, icon: 'ℹ️' });
+      }
+    }
+
+    const sentCount = results.filter(r => r.status === 'sent').length;
+    if (sentCount > 0) {
+      toast.success(`Dispatched via Meta WhatsApp API to ${sentCount} recipient${sentCount > 1 ? 's' : ''}!`, { duration: 4000 });
+    }
+
     setReportSubmitted(true);
     localStorage.setItem('ground_os_report_submitted', 'true');
-    toast.success(`Report dispatched to ${phoneNumbers.length} number${phoneNumbers.length > 1 ? 's' : ''}!`, { duration: 3500 });
     setSendingWhatsApp(false);
+  };
+
+  const handleUnlockReport = () => {
+    setReportSubmitted(false);
+    localStorage.removeItem('ground_os_report_submitted');
+    toast.success('Report unlocked! You can now edit numbers and re-dispatch.');
   };
 
   return (
@@ -370,30 +447,42 @@ export default function AiMeetingReportPage() {
           </p>
         </div>
 
-        {/* Action Button */}
-        <button 
-          className="btn" 
-          onClick={handleSendToCeo}
-          disabled={sendingWhatsApp || reportSubmitted}
-          style={{ 
-            background: reportSubmitted ? '#555' : '#25D366', 
-            color: '#fff', 
-            fontWeight: 700, 
-            fontSize: '0.9rem',
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '8px',
-            padding: '11px 22px',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: reportSubmitted ? 'not-allowed' : 'pointer',
-            boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.35)',
-            transition: 'all 0.2s'
-          }}
-        >
-          {reportSubmitted ? <Check size={16} /> : <MessageSquare size={16} fill="#fff" />}
-          {reportSubmitted ? 'Report Submitted' : sendingWhatsApp ? 'Connecting...' : 'Submit to CEO via WhatsApp'}
-        </button>
+        {/* Action Button & Resend Option */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {reportSubmitted && (
+            <button
+              onClick={handleUnlockReport}
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '10px 14px', gap: '6px', background: 'rgba(255,255,255,0.08)' }}
+              title="Unlock to edit numbers or re-send"
+            >
+              <RotateCw size={14} /> Re-send Report
+            </button>
+          )}
+          <button 
+            className="btn" 
+            onClick={handleSendToCeo}
+            disabled={sendingWhatsApp || reportSubmitted}
+            style={{ 
+              background: reportSubmitted ? '#374151' : '#25D366', 
+              color: '#fff', 
+              fontWeight: 700, 
+              fontSize: '0.9rem',
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              padding: '11px 22px',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              cursor: reportSubmitted ? 'not-allowed' : 'pointer',
+              boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.35)',
+              transition: 'all 0.2s'
+            }}
+          >
+            {reportSubmitted ? <Check size={16} /> : <MessageSquare size={16} fill="#fff" />}
+            {reportSubmitted ? 'Report Submitted' : sendingWhatsApp ? 'Connecting...' : `Submit to WhatsApp (${phoneNumbers.length})`}
+          </button>
+        </div>
       </div>
 
       {/* Brutal Truth Audit Warning Card for Trivial Greetings / Low Score */}
@@ -1102,7 +1191,7 @@ export default function AiMeetingReportPage() {
               disabled={sendingWhatsApp || reportSubmitted}
               style={{
                 width: '100%',
-                background: reportSubmitted ? '#555' : '#25D366',
+                background: reportSubmitted ? '#374151' : '#25D366',
                 color: '#fff',
                 fontWeight: 700,
                 padding: '12px',
@@ -1121,8 +1210,95 @@ export default function AiMeetingReportPage() {
               {reportSubmitted ? 'Report Has Been Submitted' : sendingWhatsApp ? 'Dispatching...' : `Send to ${phoneNumbers.length} Number${phoneNumbers.length > 1 ? 's' : ''}`}
             </button>
 
-            <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--color-text-muted)', marginTop: '12px', margin: '12px 0 0 0' }}>
-              {reportSubmitted ? 'Report already dispatched. No further submissions allowed.' : 'Opens directly in WhatsApp Web / App with pre-filled briefing.'}
+            {/* Unlock & Re-send Button */}
+            {reportSubmitted && (
+              <button
+                onClick={handleUnlockReport}
+                style={{
+                  width: '100%',
+                  marginTop: '10px',
+                  background: 'rgba(99, 102, 241, 0.12)',
+                  border: '1px solid rgba(99, 102, 241, 0.35)',
+                  color: 'var(--color-brand-light)',
+                  fontWeight: 600,
+                  padding: '9px 12px',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  fontSize: '0.82rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s'
+                }}
+              >
+                <RotateCw size={14} /> Unlock & Re-send / Edit Numbers
+              </button>
+            )}
+
+            {/* Per-Recipient Direct WhatsApp Fallback Action Cards */}
+            <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Recipient Dispatch Links ({phoneNumbers.length})
+              </div>
+              {phoneNumbers.map((phone, idx) => {
+                const clean = phone.replace(/[^0-9]/g, '');
+                const waUrl = `https://wa.me/${clean}?text=${encodeURIComponent(generateWhatsAppMessage())}`;
+                const res = dispatchResults.find(r => r.phone === clean);
+                const isSent = res?.status === 'sent';
+
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 10px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'rgba(255,255,255,0.03)',
+                      border: '1px solid var(--color-border-subtle)',
+                      gap: '8px'
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, color: '#fff' }}>
+                        +{clean}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: isSent ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
+                        {isSent ? '✓ Meta Cloud API Delivered' : 'Ready for dispatch'}
+                      </span>
+                    </div>
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        background: '#25D366',
+                        color: '#fff',
+                        textDecoration: 'none',
+                        padding: '5px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        flexShrink: 0
+                      }}
+                      title={`Send directly to +${clean}`}
+                    >
+                      <Send size={11} /> Open
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p style={{ textAlign: 'center', fontSize: '0.73rem', color: 'var(--color-text-muted)', marginTop: '12px', margin: '12px 0 0 0' }}>
+              {reportSubmitted 
+                ? 'Report dispatched. Click "Unlock & Re-send" above if you need to modify recipient numbers.' 
+                : 'Dispatches via Meta Verified Cloud API and provides instant WhatsApp Web fallbacks.'}
             </p>
           </div>
         </div>

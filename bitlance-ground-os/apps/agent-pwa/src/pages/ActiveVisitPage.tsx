@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { MapPin, Navigation, ShieldCheck, Play, Phone, MessageSquare, Camera, Smartphone, Check, RefreshCw, Radio } from 'lucide-react';
+import { MapPin, Navigation, ShieldCheck, Play, Phone, MessageSquare, Camera, Smartphone, Check, RefreshCw, Radio, MessageCircle, Send } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useHighAccuracyGPS } from '../hooks/useHighAccuracyGPS';
 import { calculateHaversineDistance, formatCoordinates, formatDistance, getAccuracyInfo } from '../utils/geoUtils';
@@ -82,16 +82,57 @@ export default function ActiveVisitPage() {
     );
   };
 
-  const handleSendOTP = () => {
-    const phone = customerPhone.replace(/[^0-9]/g, '');
-    if (phone.length < 10) {
+  const [waOtpLink, setWaOtpLink] = useState<string>('');
+  const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
+
+  const handleSendOTP = async () => {
+    const rawDigits = customerPhone.replace(/[^0-9]/g, '');
+    if (rawDigits.length < 10) {
       toast.error('Please enter a valid 10-digit customer phone number.');
       return;
     }
+    const cleanPhone = rawDigits.length === 10 ? `91${rawDigits}` : rawDigits;
     const otp = String(Math.floor(1000 + Math.random() * 9000));
     setGeneratedOtp(otp);
-    toast.success(`OTP ${otp} sent to customer (+91 ${phone.slice(-10)})`, { duration: 6000, icon: '📱' });
-    setVerificationStep('otp_sent');
+    setIsSendingOtp(true);
+
+    const otpMessage = 
+      `🔐 *LIFESTYLE HOMES — VERIFICATION CODE*\n\n` +
+      `Your 4-digit security code for today's meeting check-in is:\n\n` +
+      `*${otp}*\n\n` +
+      `_Valid for 10 minutes. Please present this verification code to your Lifestyle Homes field agent._\n` +
+      `• Secure Ground GPS Audit Verification`;
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(otpMessage)}`;
+    setWaOtpLink(waUrl);
+
+    try {
+      const resp = await fetch('/api/v1/whatsapp/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          otp,
+          customerName: 'Customer'
+        })
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.delivered) {
+          toast.success(`WhatsApp OTP sent via Meta Cloud API to +${cleanPhone}!`, { duration: 6000, icon: '💬' });
+        } else {
+          toast.success(`WhatsApp OTP ${otp} generated. Ready to deliver!`, { duration: 6000, icon: '💬' });
+        }
+      } else {
+        toast.success(`WhatsApp OTP ${otp} ready.`, { duration: 6000, icon: '💬' });
+      }
+    } catch (e) {
+      console.warn('API error sending WhatsApp OTP, using fallback:', e);
+      toast.success(`WhatsApp OTP ${otp} ready for +${cleanPhone}.`, { duration: 6000, icon: '💬' });
+    } finally {
+      setIsSendingOtp(false);
+      setVerificationStep('otp_sent');
+    }
   };
 
   const openSelfieCamera = async () => {
@@ -357,7 +398,7 @@ export default function ActiveVisitPage() {
           {verificationStep === 'unverified' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div>
-                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '3px', display: 'block' }}>CUSTOMER PHONE NUMBER</label>
+                <label style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '3px', display: 'block' }}>CUSTOMER WHATSAPP NUMBER</label>
                 <input 
                   type="tel" 
                   placeholder="e.g. 9876543210" 
@@ -370,10 +411,10 @@ export default function ActiveVisitPage() {
               <button 
                 className="btn-primary" 
                 onClick={handleSendOTP} 
-                disabled={customerPhone.replace(/[^0-9]/g, '').length < 10}
-                style={{ width: '100%', padding: '0.6rem', fontSize: '0.8rem', opacity: customerPhone.replace(/[^0-9]/g, '').length < 10 ? 0.5 : 1 }}
+                disabled={isSendingOtp || customerPhone.replace(/[^0-9]/g, '').length < 10}
+                style={{ width: '100%', padding: '0.6rem', fontSize: '0.8rem', background: '#25D366', color: '#fff', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', opacity: customerPhone.replace(/[^0-9]/g, '').length < 10 ? 0.5 : 1 }}
               >
-                <Smartphone size={14} /> Send OTP to Customer
+                <MessageCircle size={15} /> {isSendingOtp ? 'Sending...' : 'Send WhatsApp OTP to Customer'}
               </button>
             </div>
           )}
@@ -381,38 +422,63 @@ export default function ActiveVisitPage() {
           {verificationStep === 'otp_sent' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{
-                padding: '6px 10px',
+                padding: '8px 10px',
                 borderRadius: '6px',
-                background: 'rgba(59, 130, 246, 0.15)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
+                background: 'rgba(37, 211, 102, 0.12)',
+                border: '1px solid rgba(37, 211, 102, 0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '6px',
                 fontSize: '0.75rem'
               }}>
-                <span style={{ color: '#93c5fd' }}>
-                  📱 OTP: <strong>{generatedOtp || '1234'}</strong> sent to +91 {customerPhone.slice(-10)}
+                <span style={{ color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MessageCircle size={13} color="#25D366" /> WA OTP: <strong style={{ color: '#fff', fontFamily: 'monospace' }}>{generatedOtp || '1234'}</strong>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const code = generatedOtp || '1234';
-                    setOtpValue(code);
-                    handleVerifyOTP(code);
-                  }}
-                  style={{
-                    background: 'rgba(59, 130, 246, 0.3)',
-                    border: '1px solid rgba(59, 130, 246, 0.5)',
-                    color: '#fff',
-                    borderRadius: '4px',
-                    padding: '2px 8px',
-                    fontSize: '0.7rem',
-                    cursor: 'pointer',
-                    fontWeight: 700
-                  }}
-                >
-                  Auto-fill & Verify
-                </button>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {waOtpLink && (
+                    <a
+                      href={waOtpLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        background: '#25D366',
+                        color: '#fff',
+                        borderRadius: '4px',
+                        padding: '2px 6px',
+                        fontSize: '0.68rem',
+                        fontWeight: 700,
+                        textDecoration: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '3px'
+                      }}
+                    >
+                      <Send size={10} /> Open WA
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = generatedOtp || '1234';
+                      setOtpValue(code);
+                      handleVerifyOTP(code);
+                    }}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.15)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                      color: '#fff',
+                      borderRadius: '4px',
+                      padding: '2px 8px',
+                      fontSize: '0.7rem',
+                      cursor: 'pointer',
+                      fontWeight: 700
+                    }}
+                  >
+                    Verify
+                  </button>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '8px' }}>

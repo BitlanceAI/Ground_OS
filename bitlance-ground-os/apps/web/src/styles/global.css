@@ -711,7 +711,14 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
   .grid-3 { grid-template-columns: repeat(1, 1fr); }
   .grid-2 { grid-template-columns: repeat(1, 1fr); }
   
-  .app-shell { flex-direction: column; }
+  .app-shell { 
+    flex-direction: column; 
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+  }
   
   .mobile-header {
     display: flex;
@@ -722,28 +729,32 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
     border-bottom: 1px solid var(--color-border-subtle);
     height: var(--topbar-height);
     z-index: 60;
+    flex-shrink: 0;
   }
 
   .desktop-logo, .desktop-topbar {
-    display: none;
+    display: none !important;
   }
   
   .sidebar {
-    position: absolute;
+    position: fixed !important;
     top: var(--topbar-height);
-    left: -100%;
-    width: 240px;
+    left: -100% !important;
+    width: 260px;
+    max-width: 80vw;
     height: calc(100vh - var(--topbar-height));
+    height: calc(100dvh - var(--topbar-height));
     background: var(--color-bg-surface);
     border-right: 1px solid var(--color-border-subtle);
-    z-index: 50;
+    z-index: 1000;
     transition: left var(--transition-normal);
     align-items: flex-start;
     padding: var(--space-4);
+    box-shadow: 4px 0 24px rgba(0,0,0,0.6);
   }
   
   .sidebar.mobile-open {
-    left: 0;
+    left: 0 !important;
   }
   
   .sidebar nav {
@@ -767,8 +778,27 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
   .sidebar .nav-item.active::before {
     left: 0;
   }
+
+  .main-content {
+    flex: 1;
+    min-height: 0;
+    height: calc(100vh - var(--topbar-height));
+    height: calc(100dvh - var(--topbar-height));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+  }
   
-  .page-content { padding: var(--space-4); }
+  .page-content { 
+    padding: var(--space-4) var(--space-3) var(--space-8) var(--space-3);
+    flex: 1;
+    min-height: 100%;
+    overflow-y: visible;
+  }
 }
 
 /* Small Mobile (480px and below) */

@@ -79,8 +79,26 @@ export default function AppShell() {
         </button>
       </div>
 
+      {/* Mobile Drawer Backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-backdrop"
+          onClick={() => setMobileMenuOpen(false)}
+          style={{
+            position: 'fixed',
+            top: 'var(--topbar-height)',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(5, 8, 16, 0.75)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 998,
+          }}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className={`sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ position: 'relative' }}>
+      <aside className={`sidebar ${mobileMenuOpen ? 'mobile-open' : ''}`}>
         {/* Logo (Desktop) */}
         <div className="desktop-logo" style={{ marginBottom: '16px', padding: '0 10px', display: 'flex', justifyContent: 'center' }}>
           <div style={{

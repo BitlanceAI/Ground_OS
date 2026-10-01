@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Mic, Square, CheckCircle2, ChevronRight, 
   User, Building, FileText, Edit3, X, Save, Clock, Radio, Sparkles, Shield, AlertCircle,
-  Camera, MapPin, Phone, Smartphone
+  Camera, MapPin, Phone, Smartphone, MessageCircle, Send
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { evaluateMeetingTranscript, MeetingAnalysisResult } from '../../lib/meeting-evaluator';
@@ -70,6 +70,8 @@ export default function MeetingModePage() {
   const [selfieUrl, setSelfieUrl] = useState<string | null>(null);
   const [selfieGeoData, setSelfieGeoData] = useState<{ lat: number; lng: number; address: string; timestamp: string } | null>(null);
   const [liveTimeStr, setLiveTimeStr] = useState<string>(() => new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }));
+  const [waOtpLink, setWaOtpLink] = useState<string>('');
+  const [isSendingOtp, setIsSendingOtp] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -97,16 +99,54 @@ export default function MeetingModePage() {
     }
   }, [isCameraOpen]);
 
-  const handleSendOTP = () => {
-    const phone = customerPhone.replace(/[^0-9]/g, '');
-    if (phone.length < 10) {
+  const handleSendOTP = async () => {
+    const rawDigits = customerPhone.replace(/[^0-9]/g, '');
+    if (rawDigits.length < 10) {
       toast.error('Please enter a valid 10-digit customer phone number.');
       return;
     }
+    const cleanPhone = rawDigits.length === 10 ? `91${rawDigits}` : rawDigits;
     const otp = String(Math.floor(1000 + Math.random() * 9000));
     setGeneratedOtp(otp);
-    toast.success(`OTP ${otp} sent to +91 ${phone.slice(-10)}`, { duration: 6000, icon: '📱' });
-    setVerificationStep('otp_sent');
+    setIsSendingOtp(true);
+
+    const otpMessage = 
+      `🔐 *LIFESTYLE HOMES — VERIFICATION CODE*\n\n` +
+      `Your 4-digit security code for today's meeting check-in is:\n\n` +
+      `*${otp}*\n\n` +
+      `_Valid for 10 minutes. Please present this verification code to your Lifestyle Homes field agent._\n` +
+      `• Secure Ground GPS Audit Verification`;
+    const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(otpMessage)}`;
+    setWaOtpLink(waUrl);
+
+    try {
+      const resp = await fetch('/api/v1/whatsapp/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          otp,
+          customerName: businessOwnerName || 'Customer'
+        })
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data.delivered) {
+          toast.success(`WhatsApp OTP sent via Meta Cloud API to +${cleanPhone}!`, { duration: 6000, icon: '💬' });
+        } else {
+          toast.success(`WhatsApp OTP ${otp} generated. Ready to deliver!`, { duration: 6000, icon: '💬' });
+        }
+      } else {
+        toast.success(`WhatsApp OTP ${otp} generated.`, { duration: 6000, icon: '💬' });
+      }
+    } catch (e) {
+      console.warn('API error sending WhatsApp OTP, using fallback:', e);
+      toast.success(`WhatsApp OTP ${otp} generated for +${cleanPhone}.`, { duration: 6000, icon: '💬' });
+    } finally {
+      setIsSendingOtp(false);
+      setVerificationStep('otp_sent');
+    }
   };
 
   const handleVerifyOTP = (codeToVerify?: string) => {
@@ -867,10 +907,10 @@ export default function MeetingModePage() {
             </h4>
             
             {/* Step 1: Customer Phone + OTP */}
-            <div style={{ marginBottom: '16px', padding: '14px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? '3px solid var(--color-brand)' : '3px solid var(--color-success)' }}>
+            <div style={{ marginBottom: '16px', padding: '14px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? '3px solid #25D366' : '3px solid var(--color-success)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Phone size={14} /> 1. Customer OTP Verification
+                <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#25D366' }}>
+                  <MessageCircle size={15} /> 1. WhatsApp Customer OTP Verification
                 </span>
                 {(verificationStep === 'otp_verified' || verificationStep === 'selfie_captured') && <CheckCircle2 size={16} color="var(--color-success)" />}
               </div>
@@ -878,7 +918,7 @@ export default function MeetingModePage() {
               {verificationStep === 'unverified' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '4px', display: 'block' }}>CUSTOMER PHONE NUMBER</label>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '4px', display: 'block' }}>CUSTOMER WHATSAPP PHONE NUMBER</label>
                     <input 
                       type="tel" 
                       placeholder="e.g. 9876543210" 
@@ -889,12 +929,20 @@ export default function MeetingModePage() {
                     />
                   </div>
                   <button 
-                    className="btn btn-secondary" 
+                    className="btn" 
                     onClick={handleSendOTP} 
-                    disabled={customerPhone.replace(/[^0-9]/g, '').length < 10}
-                    style={{ padding: '10px 16px', fontSize: '0.85rem', gap: '6px', opacity: customerPhone.replace(/[^0-9]/g, '').length < 10 ? 0.5 : 1 }}
+                    disabled={isSendingOtp || customerPhone.replace(/[^0-9]/g, '').length < 10}
+                    style={{ 
+                      background: '#25D366', 
+                      color: '#fff', 
+                      padding: '10px 16px', 
+                      fontSize: '0.85rem', 
+                      gap: '6px', 
+                      fontWeight: 700,
+                      opacity: customerPhone.replace(/[^0-9]/g, '').length < 10 ? 0.5 : 1 
+                    }}
                   >
-                    📱 Send OTP to Customer
+                    <MessageCircle size={16} /> {isSendingOtp ? 'Dispatching...' : 'Send WhatsApp OTP to Customer'}
                   </button>
                 </div>
               )}
@@ -902,38 +950,63 @@ export default function MeetingModePage() {
               {verificationStep === 'otp_sent' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{
-                    padding: '8px 12px',
+                    padding: '10px 12px',
                     borderRadius: '6px',
-                    background: 'rgba(59, 130, 246, 0.1)',
-                    border: '1px solid rgba(59, 130, 246, 0.25)',
+                    background: 'rgba(37, 211, 102, 0.1)',
+                    border: '1px solid rgba(37, 211, 102, 0.3)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
                     fontSize: '0.78rem'
                   }}>
-                    <span style={{ color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <Smartphone size={13} /> SMS OTP: <strong>{generatedOtp || '1234'}</strong> sent to +91 {customerPhone.replace(/[^0-9]/g, '').slice(-10)}
+                    <span style={{ color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP: <strong style={{ color: '#fff', fontSize: '0.9rem', fontFamily: 'var(--font-mono)', background: 'rgba(0,0,0,0.4)', padding: '2px 6px', borderRadius: '4px' }}>{generatedOtp || '1234'}</strong> sent to customer
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const code = generatedOtp || '1234';
-                        setOtpValue(code);
-                        handleVerifyOTP(code);
-                      }}
-                      style={{
-                        background: 'rgba(59, 130, 246, 0.25)',
-                        border: '1px solid rgba(59, 130, 246, 0.5)',
-                        color: '#fff',
-                        borderRadius: '4px',
-                        padding: '4px 10px',
-                        fontSize: '0.72rem',
-                        cursor: 'pointer',
-                        fontWeight: 700
-                      }}
-                    >
-                      Auto-fill & Verify
-                    </button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      {waOtpLink && (
+                        <a
+                          href={waOtpLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            background: '#25D366',
+                            color: '#fff',
+                            textDecoration: 'none',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          <Send size={11} /> Open WhatsApp
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const code = generatedOtp || '1234';
+                          setOtpValue(code);
+                          handleVerifyOTP(code);
+                        }}
+                        style={{
+                          background: 'rgba(255, 255, 255, 0.1)',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          color: '#fff',
+                          borderRadius: '4px',
+                          padding: '4px 8px',
+                          fontSize: '0.72rem',
+                          cursor: 'pointer',
+                          fontWeight: 700
+                        }}
+                      >
+                        Auto-fill & Verify
+                      </button>
+                    </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -959,9 +1032,9 @@ export default function MeetingModePage() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <button 
                       onClick={handleSendOTP} 
-                      style={{ background: 'none', border: 'none', color: 'var(--color-brand-light)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, padding: 0 }}
+                      style={{ background: 'none', border: 'none', color: '#25D366', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, padding: 0 }}
                     >
-                      Resend Code
+                      Resend WhatsApp Code
                     </button>
                     <button 
                       onClick={() => setVerificationStep('unverified')} 
