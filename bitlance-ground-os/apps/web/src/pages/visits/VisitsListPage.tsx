@@ -608,26 +608,53 @@ export default function VisitsListPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    <Calendar size={14} /> Scheduled Date
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                      <Calendar size={14} /> Scheduled Date
+                    </label>
+                  </div>
                   <input 
                     type="date" 
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem' }}
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem', colorScheme: 'dark' }}
                   />
                 </div>
 
                 <div>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
-                    <Clock size={14} /> Scheduled Time
-                  </label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                      <Clock size={14} /> Scheduled Time
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const now = new Date();
+                        setDate(now.toISOString().split('T')[0]);
+                        setTime(now.toTimeString().slice(0, 5));
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--color-brand-light)',
+                        cursor: 'pointer',
+                        fontSize: '0.75rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontWeight: 600,
+                        padding: 0
+                      }}
+                      title="Set to current date and time"
+                    >
+                      <Sparkles size={12} /> Schedule Now
+                    </button>
+                  </div>
                   <input 
                     type="time" 
                     value={time}
                     onChange={(e) => setTime(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem' }}
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--color-bg-elevated)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: '#fff', fontSize: '0.875rem', colorScheme: 'dark' }}
                   />
                 </div>
               </div>
