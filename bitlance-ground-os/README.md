@@ -41,7 +41,7 @@ For a detailed breakdown of the system components and internal workflows, please
    ```
 
 4. **Running the Development Server**
-   Start the entire stack (web dashboard, API, worker, and PWA) concurrently:
+   Start the entire stack (web dashboard, API, and worker) concurrently:
    ```bash
    npm run dev
    ```

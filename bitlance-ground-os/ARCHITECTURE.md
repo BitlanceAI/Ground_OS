@@ -14,10 +14,6 @@ The system is broken down into three main categories: Applications (Frontends), 
   The command center interface used by organization managers and administrators. It handles user authentication, live agent tracking, reporting, and customer insights.
   - Technology: React
 
-- **Agent PWA (`apps/agent-pwa`)**
-  A Progressive Web App built for field agents. It allows agents to view their daily schedules, submit high-accuracy GPS telemetry, check into visits, and record meeting audio and notes on the go.
-  - Technology: React, Service Workers
-
 ### 2. Services (`/services`)
 
 - **Main API (`services/api`)**
@@ -41,7 +37,7 @@ The system is broken down into three main categories: Applications (Frontends), 
   Shared TypeScript interfaces and type definitions (e.g., Domain models, API request/response structures) utilized by both the frontend and backend.
 
 - **UI (`packages/ui`)**
-  A shared component library to maintain a unified design system between the web dashboard and the agent PWA.
+  A shared component library to maintain a unified design system.
 
 ## Core Workflows
 
@@ -49,7 +45,7 @@ The system is broken down into three main categories: Applications (Frontends), 
    Authentication is managed centrally via JWT. Valid tokens contain role definitions and strict organizational boundaries (`organizationId`).
 
 2. **Real-time Telemetry**
-   When a field agent logs into the PWA, their GPS coordinates are periodically pushed over WebSockets to the Realtime Gateway. The Gateway ensures authentication and delegates the message over a Redis Pub/Sub channel to be consumed and rebroadcast to respective dashboard users within the identical organization scope.
+   When a field agent connects to the platform, their GPS coordinates are periodically pushed over WebSockets to the Realtime Gateway. The Gateway ensures authentication and delegates the message over a Redis Pub/Sub channel to be consumed and rebroadcast to respective dashboard users within the identical organization scope.
 
 3. **Visit State Machine**
    Visit lifecycles transition through states (e.g., ASSIGNED -> EN_ROUTE -> ARRIVED -> MEETING_STARTED -> COMPLETED). The backend verifies physical locations against destination coordinates via geofencing before approving state transitions like `ARRIVED`.
