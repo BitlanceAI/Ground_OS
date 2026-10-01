@@ -2,11 +2,12 @@ import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   MapPin, Star, Clock, TrendingUp, ChevronRight, Lightbulb, 
-  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, RefreshCw
+  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, RefreshCw, X
 } from 'lucide-react';
 
 export default function AgentDetailPage() {
   const navigate = useNavigate();
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   // Load agent visits and meeting records
   const visits = useMemo(() => {
@@ -140,15 +141,22 @@ export default function AgentDetailPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {meetingNotes && (
-              <div style={{
-                padding: '20px',
-                borderRadius: 'var(--radius-md)',
-                background: 'rgba(99, 102, 241, 0.05)',
-                border: '1px solid rgba(99, 102, 241, 0.25)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px'
-              }}>
+              <div 
+                onClick={() => navigate('/meetings/m1/report')}
+                style={{
+                  padding: '20px',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'rgba(99, 102, 241, 0.05)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, background 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)'}
+              >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -191,7 +199,11 @@ export default function AgentDetailPage() {
                     <img 
                       src={meetingNotes.selfieUrl || verificationData?.selfieUrl} 
                       alt="Customer Selfie" 
-                      style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '1.5px solid var(--color-success)', flexShrink: 0 }} 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFullscreenImage(meetingNotes.selfieUrl || verificationData?.selfieUrl);
+                      }}
+                      style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '1.5px solid var(--color-success)', flexShrink: 0, cursor: 'pointer' }} 
                     />
                     <div>
                       <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-success)' }}>
@@ -299,6 +311,36 @@ export default function AgentDetailPage() {
 
         <InsightsCard />
       </div>
+      
+      {/* Fullscreen Image Modal */}
+      {fullscreenImage && (
+        <div 
+          onClick={() => setFullscreenImage(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.85)', zIndex: 9999,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out', padding: '20px'
+          }}
+        >
+          <img 
+            src={fullscreenImage} 
+            alt="Fullscreen Selfie" 
+            style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: '12px', border: '2px solid var(--color-brand-light)' }} 
+          />
+          <button
+            onClick={() => setFullscreenImage(null)}
+            style={{
+              position: 'absolute', top: '20px', right: '20px',
+              background: 'rgba(0,0,0,0.5)', border: 'none', borderRadius: '50%',
+              width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', cursor: 'pointer'
+            }}
+          >
+            <X size={24} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -364,9 +406,6 @@ function InsightsCard() {
             padding: '12px 14px', borderRadius: '8px',
             background: c.type === 'positive' ? 'rgba(16,185,129,0.08)' : c.type === 'action' ? 'rgba(245,158,11,0.08)' : 'rgba(99,102,241,0.08)',
             border: `1px solid ${c.type === 'positive' ? 'rgba(16,185,129,0.2)' : c.type === 'action' ? 'rgba(245,158,11,0.2)' : 'rgba(99,102,241,0.2)'}`,
-            animation: 'fadeInUp 0.4s ease forwards',
-            opacity: 0,
-            animationDelay: `${i * 0.1}s`,
           }}>
             <p style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)', lineHeight: 1.5, margin: 0 }}>{c.insight}</p>
           </div>
