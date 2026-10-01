@@ -4,21 +4,17 @@ import { Eye, EyeOff, Zap, ArrowRight, Shield } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 import toast from 'react-hot-toast';
 
-// Demo credentials for quick login
-const DEMO_USERS = [
-  { label: 'CEO', email: 'adminbitlance@gmail.com', password: 'demo1234', role: 'admin' },
-  { label: 'Agent (Nilesh)', email: 'nilesh@lifestylehomes.in', password: 'demo1234', role: 'agent' },
-];
-
 // Mock login response
-const MOCK_USERS: Record<string, object> = {
-  'adminbitlance@gmail.com': {
-    user: { id: 'u1', organizationId: 'org1', email: 'adminbitlance@gmail.com', firstName: 'Anurag', lastName: 'Dhole', role: 'admin' },
+const MOCK_USERS: Record<string, any> = {
+  'bitlanceai@gmail.com': {
+    password: 'admin@123',
+    user: { id: 'u1', organizationId: 'org1', email: 'bitlanceai@gmail.com', firstName: 'Admin', lastName: 'Bitlance', role: 'admin' },
     organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
     tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
   },
-  'nilesh@lifestylehomes.in': {
-    user: { id: 'u3', organizationId: 'org1', email: 'nilesh@lifestylehomes.in', firstName: 'Nilesh', lastName: 'Kumar', role: 'agent' },
+  'agent@gmail.com': {
+    password: 'agent@123',
+    user: { id: 'u3', organizationId: 'org1', email: 'agent@gmail.com', firstName: 'Agent', lastName: 'User', role: 'agent' },
     organization: { id: 'org1', name: 'Lifestyle Homes', slug: 'lifestyle-homes', settings: { primaryColor: '#6366f1' } },
     tokens: { accessToken: 'mock_access_token', refreshToken: 'mock_refresh_token' },
   },
@@ -39,29 +35,18 @@ export default function LoginPage() {
     await new Promise(r => setTimeout(r, 800));
 
     const mockData = MOCK_USERS[email];
-    if (mockData && password === 'demo1234') {
-      login(mockData as any);
+    if (mockData && password === mockData.password) {
+      const { password: _, ...userData } = mockData;
+      login(userData as any);
       toast.success('Welcome to Bitlance Ground OS');
       navigate('/command');
     } else {
-      toast.error('Invalid credentials. Use demo1234 as password.');
+      toast.error('Invalid credentials.');
     }
     setLoading(false);
   };
 
-  const quickLogin = async (demoUser: typeof DEMO_USERS[0]) => {
-    setEmail(demoUser.email);
-    setPassword(demoUser.password);
-    setLoading(true);
-    await new Promise(r => setTimeout(r, 600));
-    const mockData = MOCK_USERS[demoUser.email];
-    if (mockData) {
-      login(mockData as any);
-      toast.success(`Logged in as ${demoUser.label}`);
-      navigate('/command');
-    }
-    setLoading(false);
-  };
+
 
   return (
     <div style={{
@@ -155,31 +140,7 @@ export default function LoginPage() {
             Access your Ground OS command center
           </p>
 
-          {/* Quick Demo Login */}
-          <div style={{ marginBottom: '32px' }}>
-            <p style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>
-              Quick Demo Access
-            </p>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {DEMO_USERS.map(u => (
-                <button
-                  key={u.email}
-                  onClick={() => quickLogin(u)}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.78rem', padding: '6px 12px' }}
-                  id={`quick-login-${u.role.toLowerCase()}`}
-                >
-                  {u.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '32px' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--color-border-subtle)' }} />
-            <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>or sign in manually</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--color-border-subtle)' }} />
-          </div>
 
           {/* Form */}
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

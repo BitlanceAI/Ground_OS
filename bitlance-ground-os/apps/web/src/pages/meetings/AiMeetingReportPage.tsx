@@ -61,15 +61,17 @@ export default function AiMeetingReportPage() {
     if (savedData?.transcript && Array.isArray(savedData.transcript) && savedData.transcript.length > 0) {
       return savedData.transcript;
     }
-    return [
-      {
-        speaker: 'Nilesh Somnawane (Agent)',
-        role: 'agent',
-        text: 'Hello. Hello.',
-        time: '00:02',
-      },
-    ];
+    return []; // No fake fallback — show empty transcript if nothing was captured
   }, [savedData]);
+
+  // Read real GPS check-in location from localStorage
+  const checkinLocation = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('ground_os_checkin_location');
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return null;
+  }, []);
 
   const customerName = savedData?.businessOwnerName || 'Uttam';
   const customerBusiness = savedData?.businessName || 'Sreejal Jewellers';
@@ -270,7 +272,10 @@ export default function AiMeetingReportPage() {
             </span>
             <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>•</span>
             <span style={{ fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-              Verified Check-In · Dwarka, Delhi
+              Verified Check-In ·{' '}
+              {checkinLocation?.latitude
+                ? `${checkinLocation.latitude.toFixed(4)}°N, ${checkinLocation.longitude.toFixed(4)}°E`
+                : checkinLocation?.locationLabel || customerBusiness}
             </span>
           </div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 4px 0' }}>
@@ -324,7 +329,9 @@ export default function AiMeetingReportPage() {
               🚨 AI AUDIT WARNING: POOR / TRIVIAL VISIT (Score: {qualityScore}/100)
             </div>
             <div style={{ fontSize: '0.86rem', color: '#fca5a5', marginTop: '4px', lineHeight: 1.5 }}>
-              The recorded meeting audio contains only brief/trivial greetings ("hello hello") without commercial discovery or sales demonstration. The AI sales auditor has severely penalized this meeting score to inform leadership with absolute brutal truth.
+              {savedTranscripts.length === 0
+                ? 'No meaningful audio was captured during this visit. Please ensure microphone access is granted and the meeting duration is sufficient.'
+                : 'The recorded meeting audio lacks a substantive commercial pitch or sales demonstration. The AI sales auditor has penalized this meeting score to inform leadership with absolute brutal truth.'}
             </div>
           </div>
         </div>
@@ -383,7 +390,11 @@ export default function AiMeetingReportPage() {
             <ShieldCheck size={24} color="var(--color-success)" />
             <div>
               <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff' }}>GPS Check-In Verified</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>Dwarka Sales Hub, Delhi</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)' }}>
+                {checkinLocation?.latitude
+                  ? `${checkinLocation.latitude.toFixed(5)}, ${checkinLocation.longitude.toFixed(5)} (±${checkinLocation.accuracy?.toFixed(0) ?? '?'}m)`
+                  : checkinLocation?.locationLabel || customerBusiness}
+              </div>
             </div>
           </div>
           <span style={{ fontSize: '0.75rem', color: 'var(--color-brand-light)', fontWeight: 600 }}>

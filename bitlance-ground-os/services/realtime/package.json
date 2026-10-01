@@ -1,9 +1,10 @@
 {
   "name": "@ground-os/realtime",
   "version": "1.0.0",
+  "type": "module",
   "private": true,
   "scripts": {
-    "dev": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "type-check": "tsc --noEmit"
