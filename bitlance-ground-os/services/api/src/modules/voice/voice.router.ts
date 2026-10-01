@@ -38,9 +38,9 @@ import prisma from '@ground-os/database';
 // GET /api/v1/voice/calls
 router.get('/calls', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const orgId = req.user?.organizationId || req.tenant?.id;
+    const orgId = req.user?.organizationId || req.organizationId;
     const calls = await prisma.voiceCall.findMany({
-      where: orgId ? { organizationId: orgId } : undefined,
+      where: orgId ? { customer: { organizationId: orgId } } : undefined,
       orderBy: { createdAt: 'desc' },
       take: 50,
       include: {

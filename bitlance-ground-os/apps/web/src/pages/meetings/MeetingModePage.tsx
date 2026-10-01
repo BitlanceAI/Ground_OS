@@ -299,6 +299,45 @@ export default function MeetingModePage() {
       }
     }
 
+    // Save audio blob as a data URL so the report player can play it
+    if (recordedBlob && recordedBlob.size > 0) {
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          try {
+            localStorage.setItem('ground_os_meeting_audio_url', reader.result as string);
+          } catch (e) {
+            console.warn('Could not persist audio to localStorage (quota):', e);
+          }
+        };
+        reader.readAsDataURL(recordedBlob);
+      } catch (e) {
+        console.warn('Audio save error:', e);
+      }
+    }
+
+    // Save real GPS location from browser for report
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const locData = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy,
+            locationLabel: businessName,
+            timestamp: new Date().toISOString(),
+          };
+          localStorage.setItem('ground_os_checkin_location', JSON.stringify(locData));
+        },
+        () => {
+          // Fallback: save the business name as location label
+          localStorage.setItem('ground_os_checkin_location', JSON.stringify({ locationLabel: businessName }));
+        }
+      );
+    } else {
+      localStorage.setItem('ground_os_checkin_location', JSON.stringify({ locationLabel: businessName }));
+    }
+
     // 2. Save transcript to pending state and show post-meeting form
     setPendingTranscriptItems(transcriptItems);
     setPendingRawTranscript(fullRawTranscript);
@@ -400,45 +439,6 @@ export default function MeetingModePage() {
       const existing = JSON.parse(localStorage.getItem('ground_os_pipeline_value') || '[]');
       existing.push({ value: formData.expectedDealValue, business: businessName, date: new Date().toISOString() });
       localStorage.setItem('ground_os_pipeline_value', JSON.stringify(existing));
-    }
-
-    // Save audio blob as a data URL so the report player can play it
-    if (recordedBlob && recordedBlob.size > 0) {
-      try {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          try {
-            localStorage.setItem('ground_os_meeting_audio_url', reader.result as string);
-          } catch (e) {
-            console.warn('Could not persist audio to localStorage (quota):', e);
-          }
-        };
-        reader.readAsDataURL(recordedBlob);
-      } catch (e) {
-        console.warn('Audio save error:', e);
-      }
-    }
-
-    // Save real GPS location from browser for report
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const locData = {
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy,
-            locationLabel: businessName,
-            timestamp: new Date().toISOString(),
-          };
-          localStorage.setItem('ground_os_checkin_location', JSON.stringify(locData));
-        },
-        () => {
-          // Fallback: save the business name as location label
-          localStorage.setItem('ground_os_checkin_location', JSON.stringify({ locationLabel: businessName }));
-        }
-      );
-    } else {
-      localStorage.setItem('ground_os_checkin_location', JSON.stringify({ locationLabel: businessName }));
     }
 
     localStorage.setItem(`meeting_notes_${meetingId}`, JSON.stringify(reportData));
