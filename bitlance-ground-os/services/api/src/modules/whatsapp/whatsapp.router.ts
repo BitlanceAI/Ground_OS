@@ -88,7 +88,7 @@ router.post('/send-otp', async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Assuming the template name is 'verification_code' and takes one parameter (the OTP)
     // Update the template name below if your Meta template is named differently
-    const result = await provider.sendTemplate(cleanPhone, 'verification_code', [generatedOtp]);
+    const result = await provider.sendTemplate(cleanPhone, 'ground_os', [generatedOtp]);
     res.json({
       success: true,
       delivered: true,

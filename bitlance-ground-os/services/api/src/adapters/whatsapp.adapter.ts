@@ -113,6 +113,22 @@ class MetaWhatsAppProvider implements WhatsAppProvider {
 
   async sendTemplate(to: string, templateName: string, params: string[]) {
     const cleanTo = to.replace(/[^0-9]/g, '');
+    const components: any[] = [];
+    if (params.length > 0) {
+      components.push({
+        type: 'body',
+        parameters: params.map((p) => ({ type: 'text', text: p })),
+      });
+      // Meta authentication templates (like ground_os) with a "Copy code" button require button parameter
+      if (templateName === 'ground_os' || templateName === 'verification_code') {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: '0',
+          parameters: [{ type: 'text', text: params[0] }],
+        });
+      }
+    }
     return this.post({
       messaging_product: 'whatsapp',
       to: cleanTo,
@@ -120,12 +136,7 @@ class MetaWhatsAppProvider implements WhatsAppProvider {
       template: {
         name: templateName,
         language: { code: 'en' },
-        components: params.length > 0
-          ? [{
-              type: 'body',
-              parameters: params.map((p) => ({ type: 'text', text: p })),
-            }]
-          : [],
+        components,
       },
     });
   }
