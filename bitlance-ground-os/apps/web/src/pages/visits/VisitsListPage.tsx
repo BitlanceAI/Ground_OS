@@ -127,8 +127,21 @@ export default function VisitsListPage() {
   const [isDetectingGPS, setIsDetectingGPS] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  const [completedMeetings, setCompletedMeetings] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Fetch all meetings from DB to know which visits are already completed
+    meetingsApi.list().then(res => {
+      if (res.data) setCompletedMeetings(res.data);
+    }).catch(e => console.error(e));
+  }, []);
+
   const activeVisits = visits.filter(v => 
     v.status !== 'completed' && 
+    !completedMeetings.some(m => 
+      (m.businessName && m.businessName.toLowerCase() === v.business.toLowerCase()) || 
+      (m.clientName && m.clientName.toLowerCase() === v.customerName.toLowerCase())
+    ) &&
     !(meetingNotes && (meetingNotes.businessName === v.business || meetingNotes.businessOwnerName === v.customerName))
   );
 
@@ -269,10 +282,6 @@ export default function VisitsListPage() {
     });
   };
 
-  const handleDeleteVisit = (id: string, name: string) => {
-    setVisits(prev => prev.filter(v => v.id !== id));
-    toast.success(`Removed visit with ${name}`);
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 840, margin: '0 auto', paddingBottom: '40px' }}>
@@ -406,14 +415,6 @@ export default function VisitsListPage() {
                     style={{ padding: '10px 18px', gap: '6px' }}
                   >
                     {visit.status === 'in_progress' ? 'Resume Meeting' : 'Start Visit'} <ChevronRight size={16} />
-                  </button>
-                  <button 
-                    className="btn btn-ghost" 
-                    onClick={() => handleDeleteVisit(visit.id, visit.customerName)}
-                    title="Delete Visit"
-                    style={{ padding: '10px', color: 'var(--color-text-muted)' }}
-                  >
-                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
