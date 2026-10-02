@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { 
   MapPin, Calendar, Clock, ChevronRight, Plus, 
   User, Building, Phone, FileText, CheckCircle2, 
-  Trash2, X, AlertCircle, Sparkles, Navigation, Check
+  Trash2, X, AlertCircle, Sparkles, Navigation, Check, Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { geocodeAddress, searchPlaces, getCurrentDeviceLocation, PlaceSuggestion } from '../../lib/geocoder';
+import { useAuthStore } from '../../store/auth.store';
+import { agentsApi, visitsApi, meetingsApi } from '../../lib/api';
 
 export interface Visit {
   id: string;
@@ -27,10 +29,14 @@ export interface Visit {
 export default function VisitsListPage() {
   const navigate = useNavigate();
 
+  const { user } = useAuthStore();
+  const agentKey = user?.agentId || user?.id || 'm1';
+  const visitsStorageKey = `ground_os_agent_visits_${agentKey}`;
+
   // Load persistent visits or start fresh
   const [visits, setVisits] = useState<Visit[]>(() => {
     try {
-      const saved = localStorage.getItem('ground_os_agent_visits');
+      const saved = localStorage.getItem(visitsStorageKey) || localStorage.getItem('ground_os_agent_visits');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) return parsed;
@@ -44,23 +50,24 @@ export default function VisitsListPage() {
   // Load completed meeting notes to check closed status
   const meetingNotes = (() => {
     try {
-      const saved = localStorage.getItem('meeting_notes_m1');
+      const saved = localStorage.getItem(`meeting_notes_${agentKey}`) || localStorage.getItem('meeting_notes_m1');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
   })();
 
-  // Save to localStorage whenever visits change
+  // Save to localStorage whenever visits change (keyed by agent)
   useEffect(() => {
     try {
+      localStorage.setItem(visitsStorageKey, JSON.stringify(visits));
       localStorage.setItem('ground_os_agent_visits', JSON.stringify(visits));
     } catch (e) {
       console.error(e);
     }
-  }, [visits]);
+  }, [visits, visitsStorageKey]);
 
-  // Request browser GPS position on mount to track agent in Delhi
+  // Request browser GPS position on mount to track agent
   useEffect(() => {
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -69,10 +76,22 @@ export default function VisitsListPage() {
             lat: pos.coords.latitude,
             lng: pos.coords.longitude,
             accuracy: pos.coords.accuracy,
+            agentId: user?.agentId,
+            agentName: user ? `${user.firstName} ${user.lastName}`.trim() : 'Nilesh Somnawane',
             timestamp: new Date().toISOString(),
           };
+          localStorage.setItem(`ground_os_agent_location_${agentKey}`, JSON.stringify(loc));
           localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
           window.dispatchEvent(new Event('storage'));
+
+          // Report heartbeat location to backend API
+          if (user?.agentId) {
+            agentsApi.updateLocation(user.agentId, {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            }).catch(() => {});
+          }
         },
         (err) => {
           // Default agent location in Delhi NCR
@@ -82,12 +101,13 @@ export default function VisitsListPage() {
             address: 'Dwarka, New Delhi',
             timestamp: new Date().toISOString(),
           };
+          localStorage.setItem(`ground_os_agent_location_${agentKey}`, JSON.stringify(defaultDelhi));
           localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultDelhi));
         },
         { enableHighAccuracy: true, timeout: 5000 }
       );
     }
-  }, []);
+  }, [agentKey, user]);
 
   // Plan Visit Modal State
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
@@ -409,6 +429,14 @@ export default function VisitsListPage() {
                       <span className="badge badge-success" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Check size={14} /> Closed
                       </span>
+                      {(() => {
+                        const tapped = localStorage.getItem('ground_os_lead_tapped_m1') === 'true' || meetingNotes?.leadTapped === true;
+                        return tapped ? (
+                          <span className="badge badge-warning" style={{ padding: '6px 10px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Zap size={12} fill="#fbbf24" /> Tapped (+1)
+                          </span>
+                        ) : null;
+                      })()}
                       <button 
                         className="btn btn-secondary"
                         onClick={() => navigate('/meetings/m1/report')}

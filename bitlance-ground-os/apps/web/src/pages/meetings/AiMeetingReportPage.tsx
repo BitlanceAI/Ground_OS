@@ -8,6 +8,7 @@ import {
   Camera, Phone, MapPin, Maximize2, Shield, RotateCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '../../store/auth.store';
 
 interface TranscriptItem {
   speaker: string;
@@ -18,6 +19,7 @@ interface TranscriptItem {
 
 export default function AiMeetingReportPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
   const [reportSubmitted, setReportSubmitted] = useState(() => {
     return localStorage.getItem('ground_os_report_submitted') === 'true';
@@ -40,6 +42,56 @@ export default function AiMeetingReportPage() {
       return null;
     }
   }, []);
+
+  // Lead Tapped State for this client report
+  const [isLeadTapped, setIsLeadTapped] = useState<boolean>(() => {
+    try {
+      const savedTapped = localStorage.getItem('ground_os_lead_tapped_m1');
+      if (savedTapped !== null) return savedTapped === 'true';
+      return savedData?.leadTapped === true;
+    } catch {
+      return false;
+    }
+  });
+  const [togglingTap, setTogglingTap] = useState(false);
+
+  const handleToggleLeadTapped = async () => {
+    const nextState = !isLeadTapped;
+    setIsLeadTapped(nextState);
+    localStorage.setItem('ground_os_lead_tapped_m1', String(nextState));
+
+    // Update meeting notes in localStorage
+    try {
+      const notesRaw = localStorage.getItem('meeting_notes_m1');
+      if (notesRaw) {
+        const notesObj = JSON.parse(notesRaw);
+        notesObj.leadTapped = nextState;
+        notesObj.leadTappedAt = nextState ? new Date().toISOString() : null;
+        localStorage.setItem('meeting_notes_m1', JSON.stringify(notesObj));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Call backend API if possible
+    try {
+      setTogglingTap(true);
+      const visitId = savedData?.visitId || 'vis-001';
+      const { visitsApi } = await import('../../lib/api');
+      await visitsApi.tapLead(visitId).catch(() => {});
+    } catch (e) {
+      console.warn(e);
+    } finally {
+      setTogglingTap(false);
+    }
+
+    if (nextState) {
+      toast.success('🎯 Lead marked as TAPPED! +1 added automatically to Leads Tapped tally.', { duration: 4500 });
+    } else {
+      toast.error('Lead marked as Untapped. Leads Tapped counter adjusted.', { duration: 3500 });
+    }
+    window.dispatchEvent(new Event('storage'));
+  };
 
   // Audio source Data URL or Blob URL
   const audioSrc = useMemo(() => {
@@ -140,7 +192,10 @@ export default function AiMeetingReportPage() {
     verifiedSelfieUrl
   );
   const duration = savedData?.duration || '00:14';
-  const agentName = savedData?.agentName || 'Nilesh Somnawane';
+  const loggedInAgentName = user ? `${user.firstName} ${user.lastName}`.trim() : null;
+  const agentName = savedData?.agentName || loggedInAgentName || 'Nilesh Somnawane';
+  const agentPhone = user?.phone || savedData?.agentPhone || '+91 7498162774';
+  const employeeCode = user?.employeeCode || savedData?.employeeCode || 'AG001';
   const meetingDate = savedData?.meetingDate || new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const meetingTime = savedData?.meetingTime || new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
   const expectedDealValue = savedData?.expectedDealValue || '';
@@ -247,32 +302,37 @@ export default function AiMeetingReportPage() {
     };
 
     return (
-      `🚀 *FIELD VISIT REPORT — CEO BRIEFING*\n` +
+      `╭─────────────────────────╮\n` +
+      `  👤 *AGENT: ${agentName.toUpperCase()}* (${employeeCode})\n` +
+      `  📱 *Contact: ${agentPhone}*\n` +
+      `╰─────────────────────────╯\n` +
+      `⚡ *FIELD VISIT REPORT — CEO BRIEFING*\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `📅 *Date:* ${meetingDate}\n` +
-      `⏰ *Time:* ${meetingTime}\n` +
-      `📍 *Location / Shop:* ${customerBusiness}\n` +
-      `👤 *Business Owner / Decision Maker:* ${customerName}\n` +
-      `👔 *Field Agent:* ${agentName}\n` +
+      `📅 *Date:* ${meetingDate} · ${meetingTime}\n` +
+      `📍 *Client Shop:* ${customerBusiness}\n` +
+      `👤 *Decision Maker:* ${customerName}\n` +
       `⏱️ *Meeting Duration:* ${duration}\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-      `🛡️ *GROUND VERIFICATION AUDIT:*\n` +
-      `• Customer Mobile: +91 ${verifiedCustomerPhone.replace(/[^0-9]/g, '').slice(-10)} (OTP Verified ✓)\n` +
-      `• Geo-Tagged Selfie: Captured & Stamped ✓\n` +
-      `• GNSS Location: ${verifiedGeo?.address || 'Verified On-Site'}\n\n` +
-      (isLowScore ? `🚨 *AUDIT WARNING: LOW INTENT / POOR VISIT*\n• Quality Rating: ${qualityScore}/100 (Failed Commercial Audit)\n\n` : `🎯 *DEAL INTELLIGENCE:*\n• Intent Score: ${qualityScore}/100 (${outcome})\n`) +
-      (expectedDealValue ? `• Expected Deal Value: ₹${expectedDealValue}\n` : '') +
-      (followUpStatus ? `• Client Status: ${followUpLabel[followUpStatus] || followUpStatus}\n` : '') +
-      (followUpDate ? `• Next Follow-Up: ${followUpDate}\n` : '') +
+      `🛡️ *ON-SITE FORENSIC AUDIT:*\n` +
+      `  ✔ Client Phone: +91 ${verifiedCustomerPhone.replace(/[^0-9]/g, '').slice(-10)} (OTP Verified)\n` +
+      `  ✔ Geotagged Visual Proof: Stamped\n` +
+      `  ✔ GNSS Satellite Pin: ${verifiedGeo?.address || 'Verified On-Site'}\n\n` +
+      (isLowScore 
+        ? `🚨 *AUDIT WARNING — POOR / LOW INTENT VISIT*\n  • Quality Rating: ${qualityScore}/100 (Commercial Pitch Missing)\n\n` 
+        : `🎯 *DEAL INTELLIGENCE:*\n  • Intent Score: ${qualityScore}/100 · ${outcome}\n`) +
+      `  • Lead Tapped Status: ${isLeadTapped ? '⚡ YES — TAPPED (+1 In Audit Report)' : '⚪ NOT TAPPED'}\n` +
+      (expectedDealValue ? `  • Expected Deal Value: ₹${expectedDealValue}\n` : '') +
+      (followUpStatus ? `  • Pipeline Stage: ${followUpLabel[followUpStatus] || followUpStatus}\n` : '') +
+      (followUpDate ? `  • Next Follow-Up: ${followUpDate}\n` : '') +
       `\n📝 *EXECUTIVE AUDIT SUMMARY:*\n${summary}\n\n` +
       (productsDiscussed ? `🛍️ *Products / Services Discussed:*\n${productsDiscussed}\n\n` : '') +
-      (keyHighlights ? `💡 *Key Highlights / Promises:*\n${keyHighlights}\n\n` : '') +
-      `📌 *NEXT ACTION:*\n${nextAction}\n\n` +
+      (keyHighlights ? `💡 *Key Commitments & Highlights:*\n${keyHighlights}\n\n` : '') +
+      `📌 *NEXT ACTION REQUIRED:*\n${nextAction}\n\n` +
       (agentObservations ? `🔍 *Agent Field Observations:*\n${agentObservations}\n\n` : '') +
       `💬 *PERSON-WISE TRANSCRIPT:*\n` +
-      (transcriptHighlights || '• Brief audio capture recorded.') +
+      (transcriptHighlights || '  • Audio interaction recorded.') +
       `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-      `_Submitted via Bitlance Ground OS · ${meetingDate}_`
+      `_Bitlance Ground OS · Automated Field Sales Intelligence_`
     );
   };
 
@@ -302,7 +362,7 @@ export default function AiMeetingReportPage() {
     try {
       const { whatsappApi } = await import('../../lib/api');
       const res = await whatsappApi.send(cleanNumbers[0], messageText, undefined, undefined, cleanNumbers);
-      if (res.success || res.someSuccess) {
+      if (res.success) {
         toast.success(`Report dispatched to ${cleanNumbers.length} recipient${cleanNumbers.length > 1 ? 's' : ''}!`, { duration: 4000 });
       } else {
         toast.error('Failed to send WhatsApp message via API.');
@@ -465,6 +525,92 @@ export default function AiMeetingReportPage() {
           </div>
         </div>
       )}
+
+      {/* Interactive Lead Tapped Conversion Banner */}
+      <div style={{
+        padding: '20px 24px',
+        borderRadius: 'var(--radius-lg)',
+        background: isLeadTapped
+          ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.16) 0%, rgba(245, 158, 11, 0.08) 100%)'
+          : 'linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, rgba(255, 255, 255, 0.01) 100%)',
+        border: isLeadTapped
+          ? '1px solid rgba(251, 191, 36, 0.5)'
+          : '1px solid var(--color-border-subtle)',
+        boxShadow: isLeadTapped ? '0 4px 20px rgba(251, 191, 36, 0.12)' : 'none',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '16px',
+        transition: 'all 0.3s ease',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{
+            width: 48,
+            height: 48,
+            borderRadius: '12px',
+            background: isLeadTapped ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.06)',
+            border: `1px solid ${isLeadTapped ? '#fbbf24' : 'rgba(255, 255, 255, 0.12)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '22px',
+            flexShrink: 0,
+            boxShadow: isLeadTapped ? '0 0 16px rgba(251, 191, 36, 0.4)' : 'none',
+          }}>
+            ⚡
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '1.05rem', fontWeight: 800, color: isLeadTapped ? '#fbbf24' : '#fff' }}>
+                Lead Tapped Status: {isLeadTapped ? 'TAPPED & ACTIVE (+1)' : 'NOT TAPPED YET'}
+              </span>
+              <span className={`badge ${isLeadTapped ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
+                {isLeadTapped ? '✓ +1 IN AGENT REPORT' : 'ACTION REQUIRED'}
+              </span>
+            </div>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
+              {isLeadTapped
+                ? `Confirmed by Agent ${agentName}: This client has been successfully tapped for business deals. +1 added to your Leads Tapped live dossier.`
+                : `Did you tap this lead during this visit? Toggle to "Tapped" to automatically increment your Leads Tapped count in CEO Admin Reports.`}
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleToggleLeadTapped}
+          disabled={togglingTap}
+          style={{
+            padding: '11px 22px',
+            borderRadius: 'var(--radius-md)',
+            fontWeight: 800,
+            fontSize: '0.875rem',
+            cursor: 'pointer',
+            border: 'none',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: isLeadTapped
+              ? 'linear-gradient(135deg, #fbbf24, #d97706)'
+              : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            color: isLeadTapped ? '#000' : '#fff',
+            boxShadow: isLeadTapped ? '0 4px 14px rgba(251, 191, 36, 0.4)' : '0 4px 14px rgba(99, 102, 241, 0.35)',
+            transition: 'all 0.2s',
+          }}
+          title={isLeadTapped ? 'Click to mark untapped' : 'Click to mark tapped (+1)'}
+        >
+          {isLeadTapped ? (
+            <>
+              <CheckCircle2 size={16} color="#000" />
+              <span>Lead is Tapped (+1)</span>
+            </>
+          ) : (
+            <>
+              <span>⚡ Mark as Lead Tapped (+1)</span>
+            </>
+          )}
+        </button>
+      </div>
 
       {/* Top 3 Executive Metrics */}
       <div className="grid-3" style={{ gap: '16px' }}>

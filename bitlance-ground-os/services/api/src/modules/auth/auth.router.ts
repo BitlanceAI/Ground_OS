@@ -23,11 +23,15 @@ router.post('/login', async (req: Request, res: Response) => {
     try {
       const user = await prisma.user.findUnique({
         where: { email },
-        include: { organization: true },
+        include: { organization: true, agent: true },
       });
 
-      if (!user || !user.isActive) {
+      if (!user) {
         return res.status(401).json({ message: 'Invalid credentials' });
+      }
+
+      if (!user.isActive) {
+        return res.status(403).json({ message: 'Login access has been revoked or paused by administrator. Please contact your manager.' });
       }
 
       const valid = await bcrypt.compare(password, user.passwordHash);
@@ -39,7 +43,7 @@ router.post('/login', async (req: Request, res: Response) => {
       const refreshSecret = process.env.JWT_REFRESH_SECRET || 'bitlance-ground-os-jwt-refresh-secret-development-67890';
 
       const accessToken = jwt.sign(
-        { sub: user.id, orgId: user.organizationId, role: user.role },
+        { sub: user.id, orgId: user.organizationId, role: user.role, agentId: user.agent?.id },
         secret,
         { expiresIn: '7d' as any }
       );
@@ -59,6 +63,11 @@ router.post('/login', async (req: Request, res: Response) => {
           lastName: user.lastName,
           role: user.role,
           avatarUrl: user.avatarUrl,
+          isActive: user.isActive,
+          agentId: user.agent?.id || null,
+          phone: user.agent?.phone || null,
+          territory: user.agent?.territory || null,
+          employeeCode: user.agent?.employeeCode || null,
         },
         organization: {
           id: user.organization.id,
@@ -110,15 +119,42 @@ router.post('/logout', async (req: Request, res: Response) => {
 
 // GET /api/v1/auth/me — protected
 router.get('/me', async (req: Request, res: Response) => {
-  const user = (req as any).user;
-  if (!user) return res.status(401).json({ message: 'Unauthorized' });
+  const tokenUser = (req as any).user;
+  if (!tokenUser) return res.status(401).json({ message: 'Unauthorized' });
 
-  const organization = await prisma.organization.findUnique({ where: { id: user.organizationId } });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: tokenUser.sub || tokenUser.id },
+      include: { agent: true },
+    });
 
-  return res.json({
-    user,
-    organization,
-  });
+    if (!user) return res.status(401).json({ message: 'User not found' });
+    if (!user.isActive) {
+      return res.status(403).json({ message: 'Account is paused or revoked by administrator' });
+    }
+
+    const organization = await prisma.organization.findUnique({ where: { id: user.organizationId } });
+
+    return res.json({
+      user: {
+        id: user.id,
+        organizationId: user.organizationId,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        avatarUrl: user.avatarUrl,
+        isActive: user.isActive,
+        agentId: user.agent?.id || null,
+        phone: user.agent?.phone || null,
+        territory: user.agent?.territory || null,
+        employeeCode: user.agent?.employeeCode || null,
+      },
+      organization,
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Database error' });
+  }
 });
 
 export default router;

@@ -10,13 +10,13 @@ import TopBar from './TopBar';
 
 const adminNavItems = [
   { icon: LayoutDashboard, label: 'Command', to: '/command', title: 'CEO Command Center' },
+  { icon: Users, label: 'Agents', to: '/agents', title: 'Field Agent Management & Credentials' },
   { icon: MapPin, label: 'Visits', to: '/visits', title: 'Field Visits & Tracking' },
-  { icon: Users, label: 'Agent Portal', to: '/agents/agt-nilesh-01', title: 'Agent Nilesh Portal' },
 ];
 
 const agentNavItems = [
   { icon: MapPin, label: 'Visits', to: '/visits', title: 'My Visits & Meetings' },
-  { icon: Users, label: 'Agent Portal', to: '/agents/agt-nilesh-01', title: 'Agent Nilesh Portal' },
+  { icon: Users, label: 'My Portal', to: '/agents/me', title: 'My Agent Portal' },
 ];
 
 import { Component, ErrorInfo } from 'react';

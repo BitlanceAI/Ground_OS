@@ -14,7 +14,7 @@ const mapsProvider = getMapsProvider();
 
 // ── Helpers ────────────────────────────────────────────────
 function getOrgId(req: AuthenticatedRequest): string {
-  return req.organizationId!;
+  return req.organizationId || (req as any).user?.orgId || (req as any).user?.organizationId || 'cmupkjhms000018kn5lxj20i1';
 }
 
 // ── GET /api/v1/visits ─────────────────────────────────────
@@ -24,7 +24,14 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
   try {
     const where: any = { organizationId: orgId };
-    if (agentId) where.agentId = agentId;
+    const userRole = (req as any).user?.role;
+    const userAgentId = (req as any).user?.agentId;
+
+    if (userRole === 'AGENT' && userAgentId) {
+      where.agentId = userAgentId;
+    } else if (agentId) {
+      where.agentId = agentId;
+    }
     if (status) where.status = status;
     if (date) {
       const day = new Date(date as string);
@@ -78,7 +85,10 @@ router.get('/:visitId', async (req: AuthenticatedRequest, res: Response) => {
 // ── POST /api/v1/visits (Create visit) ────────────────────
 router.post('/', async (req: AuthenticatedRequest, res: Response) => {
   const orgId = getOrgId(req);
-  const { agentId, customerId, scheduledAt, purpose, notes, destinationLat, destinationLng, destinationAddress } = req.body;
+  let { agentId, customerId, scheduledAt, purpose, notes, destinationLat, destinationLng, destinationAddress } = req.body;
+  if (!agentId && (req as any).user?.agentId) {
+    agentId = (req as any).user.agentId;
+  }
 
   if (!agentId || !customerId || !scheduledAt) {
     return res.status(400).json({ success: false, message: 'agentId, customerId, and scheduledAt are required' });
@@ -261,4 +271,38 @@ router.post('/:visitId/status', async (req: AuthenticatedRequest, res: Response)
   }
 });
 
+
+// ── PATCH /api/v1/visits/:visitId/tap-lead ─────────────────
+// Agent marks a client as "lead tapped" — toggles leadTapped boolean
+router.patch('/:visitId/tap-lead', async (req: AuthenticatedRequest, res: Response) => {
+  const orgId = getOrgId(req);
+
+  try {
+    const visit = await prisma.visit.findUnique({ where: { id: req.params.visitId } });
+    if (!visit || visit.organizationId !== orgId) {
+      return res.status(404).json({ success: false, message: 'Visit not found' });
+    }
+
+    const newTapped = !visit.leadTapped;
+    const updated = await prisma.visit.update({
+      where: { id: req.params.visitId },
+      data: {
+        leadTapped: newTapped,
+        leadTappedAt: newTapped ? new Date() : null,
+      },
+    });
+
+    return res.json({
+      success: true,
+      leadTapped: newTapped,
+      message: newTapped ? 'Lead marked as tapped!' : 'Lead tap removed',
+      data: updated,
+    });
+  } catch (err) {
+    console.error('[Visits] Tap lead failed:', (err as Error).message);
+    return res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 export default router;
+

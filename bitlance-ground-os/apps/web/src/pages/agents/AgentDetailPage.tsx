@@ -1,32 +1,47 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { 
   MapPin, Star, Clock, TrendingUp, ChevronRight, Lightbulb, 
-  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, RefreshCw, X
+  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, RefreshCw, X, ArrowLeft
 } from 'lucide-react';
+import { useAuthStore } from '../../store/auth.store';
+import { agentsApi } from '../../lib/api';
 
 export default function AgentDetailPage() {
   const navigate = useNavigate();
+  const { agentId } = useParams();
+  const { user } = useAuthStore();
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [agentData, setAgentData] = useState<any>(null);
 
-  // Load agent visits and meeting records
+  useEffect(() => {
+    if (agentId && agentId !== 'me' && agentId !== 'agt-nilesh-01') {
+      agentsApi.get(agentId).then(res => {
+        if (res?.data) setAgentData(res.data);
+      }).catch(err => console.warn('Failed to load agent profile:', err));
+    }
+  }, [agentId]);
+
+  const effectiveAgentId = agentId === 'me' ? (user?.agentId || user?.id || 'm1') : (agentId || 'm1');
+
+  // Load agent visits and meeting records (keyed by agent)
   const visits = useMemo(() => {
     try {
-      const saved = localStorage.getItem('ground_os_agent_visits');
+      const saved = localStorage.getItem(`ground_os_agent_visits_${effectiveAgentId}`) || localStorage.getItem('ground_os_agent_visits');
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
     }
-  }, []);
+  }, [effectiveAgentId]);
 
   const meetingNotes = useMemo(() => {
     try {
-      const saved = localStorage.getItem('meeting_notes_m1');
+      const saved = localStorage.getItem(`meeting_notes_${effectiveAgentId}`) || localStorage.getItem('meeting_notes_m1');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
-  }, []);
+  }, [effectiveAgentId]);
 
   const verificationData = useMemo(() => {
     try {
@@ -45,9 +60,35 @@ export default function AgentDetailPage() {
     closingClarity: Math.max(15, qualityScore - 5),
   };
 
+  const currentAgentName = agentData?.name || 
+    (agentId === 'me' && user ? `${user.firstName} ${user.lastName}`.trim() : null) || 
+    'Nilesh Somnawane';
+  const currentAgentPhone = agentData?.phone || 
+    (agentId === 'me' && user?.phone ? user.phone : null) || 
+    '+91 98765 43210';
+  const currentAgentTerritory = agentData?.territory || 
+    (agentId === 'me' && user?.territory ? user.territory : null) || 
+    'Delhi NCR (Dwarka Hub)';
+
+  const initials = currentAgentName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'AG';
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 1000, margin: '0 auto', paddingBottom: '40px' }}>
       
+      {/* Back button for Admin */}
+      {user?.role !== 'agent' && (
+        <button 
+          onClick={() => navigate('/agents')}
+          style={{
+            background: 'none', border: 'none', color: 'var(--color-text-muted)',
+            display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.825rem',
+            cursor: 'pointer', padding: 0
+          }}
+        >
+          <ArrowLeft size={14} /> Back to Agent Management
+        </button>
+      )}
+
       {/* Header — Agent Identity */}
       <div className="card-branded" style={{ padding: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '22px', flexWrap: 'wrap' }}>
@@ -58,7 +99,7 @@ export default function AgentDetailPage() {
             fontSize: '1.75rem', fontWeight: 800, color: '#fff',
             boxShadow: '0 0 24px rgba(99,102,241,0.4)'
           }}>
-            NS
+            {initials}
           </div>
           
           <div style={{ flex: 1, minWidth: 240 }}>
@@ -67,15 +108,15 @@ export default function AgentDetailPage() {
               <div className="status-dot online" />
               <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Active in Field</span>
             </div>
-            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 4px 0' }}>Nilesh Somnawane</h1>
+            <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: '0 0 4px 0' }}>{currentAgentName}</h1>
             <div style={{ display: 'flex', gap: '14px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
                 <MapPin size={14} color="var(--color-brand-light)" />
-                Territory: <strong>Delhi NCR (Dwarka Hub)</strong>
+                Territory: <strong>{currentAgentTerritory}</strong>
               </div>
               <span style={{ color: 'var(--color-text-muted)' }}>•</span>
               <span style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-                Phone: +91 98765 43210
+                Phone: {currentAgentPhone}
               </span>
             </div>
           </div>

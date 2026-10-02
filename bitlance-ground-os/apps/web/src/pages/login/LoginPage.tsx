@@ -27,10 +27,13 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (response.ok) {
-        // Assume auth store handles token storage inside login method or similar.
         login(data);
-        toast.success('Welcome to Bitlance Ground OS');
-        navigate('/command');
+        toast.success(`Welcome, ${data.user?.firstName || 'back'}!`);
+        if (data.user?.role?.toLowerCase() === 'agent') {
+          navigate('/visits');
+        } else {
+          navigate('/command');
+        }
       } else {
         toast.error(data.message || 'Invalid credentials.');
       }
@@ -131,12 +134,9 @@ export default function LoginPage() {
           <h2 style={{ fontFamily: 'var(--font-head)', fontWeight: 800, fontSize: '1.75rem', marginBottom: '8px' }}>
             Sign in
           </h2>
-          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '40px' }}>
+          <p style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginBottom: '36px' }}>
             Access your Ground OS command center
           </p>
-
-
-
           {/* Form */}
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div>

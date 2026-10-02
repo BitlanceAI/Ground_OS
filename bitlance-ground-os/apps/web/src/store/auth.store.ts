@@ -16,6 +16,11 @@ interface User {
   lastName: string;
   role: string;
   avatarUrl?: string;
+  isActive?: boolean;
+  agentId?: string;
+  phone?: string;
+  territory?: string;
+  employeeCode?: string;
 }
 
 interface AuthState {

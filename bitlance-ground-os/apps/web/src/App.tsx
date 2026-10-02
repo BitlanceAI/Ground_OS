@@ -6,6 +6,7 @@ import AppShell from './components/layout/AppShell';
 import LoginPage from './pages/login/LoginPage';
 import CommandCenterPage from './pages/command-center/CommandCenterPage';
 import AgentDetailPage from './pages/agents/AgentDetailPage';
+import AgentsManagementPage from './pages/agents/AgentsManagementPage';
 import VisitDetailPage from './pages/visits/VisitDetailPage';
 import MeetingModePage from './pages/meetings/MeetingModePage';
 import AiMeetingReportPage from './pages/meetings/AiMeetingReportPage';
@@ -65,8 +66,7 @@ export default function App() {
         } />
         <Route path="agents" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            {/* You'd typically have an Agents list page here, reusing AgentDetailPage for now or add a new one if it exists. But there is no agents list in the imports. We'll just map to a placeholder or skip. */}
-            <Navigate to="/command" replace />
+            <AgentsManagementPage />
           </ProtectedRoute>
         } />
         <Route path="agents/:agentId" element={<AgentDetailPage />} />

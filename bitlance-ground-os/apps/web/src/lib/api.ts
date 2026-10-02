@@ -79,6 +79,28 @@ export const agentsApi = {
   get: (agentId: string) =>
     apiFetch<ApiResponse<any>>(`/api/v1/agents/${agentId}`),
 
+  create: (data: { firstName: string; lastName?: string; email: string; password: string; phone?: string; territory?: string; employeeCode?: string }) =>
+    apiFetch<ApiResponse<any>>('/api/v1/agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (agentId: string, data: { firstName?: string; lastName?: string; email?: string; password?: string; phone?: string; territory?: string; employeeCode?: string; isActive?: boolean; status?: string }) =>
+    apiFetch<ApiResponse<any>>(`/api/v1/agents/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  toggleActive: (agentId: string) =>
+    apiFetch<ApiResponse<any>>(`/api/v1/agents/${agentId}/toggle-active`, {
+      method: 'PATCH',
+    }),
+
+  delete: (agentId: string) =>
+    apiFetch<ApiResponse<any>>(`/api/v1/agents/${agentId}`, {
+      method: 'DELETE',
+    }),
+
   updateLocation: (agentId: string, location: { latitude: number; longitude: number; accuracy?: number; address?: string }) =>
     apiFetch<ApiResponse<any>>(`/api/v1/agents/${agentId}/location`, {
       method: 'POST',
@@ -119,6 +141,11 @@ export const visitsApi = {
       method: 'POST',
       body: JSON.stringify({ status }),
     }),
+
+  tapLead: (visitId: string) =>
+    apiFetch<ApiResponse<any>>(`/api/v1/visits/${visitId}/tap-lead`, {
+      method: 'PATCH',
+    }),
 };
 
 // ── Meetings ───────────────────────────────────────────────
@@ -145,6 +172,15 @@ export const meetingsApi = {
 
   analyze: (meetingId: string) =>
     apiFetch<ApiResponse<any>>(`/api/v1/meetings/${meetingId}/complete-and-analyze`, { method: 'POST' }),
+
+  adminSchedule: (data: { agentId: string; customerId?: string; scheduledFor: string; title?: string; notes?: string; purposeOfVisit?: string }) =>
+    apiFetch<ApiResponse<any>>('/api/v1/meetings/admin-schedule', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  agentReport: () =>
+    apiFetch<ApiResponse<any[]>>('/api/v1/meetings/agent-report'),
 };
 
 // ── Customers ──────────────────────────────────────────────
