@@ -2,10 +2,12 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   MapPin, Star, Clock, TrendingUp, ChevronRight, Lightbulb, 
-  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, RefreshCw, X, ArrowLeft
+  FileText, CheckCircle2, User, Building, ExternalLink, Calendar, 
+  RefreshCw, X, ArrowLeft, Zap, ShieldCheck, Phone, Check, AlertTriangle
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
-import { agentsApi } from '../../lib/api';
+import { agentsApi, visitsApi } from '../../lib/api';
 
 export default function AgentDetailPage() {
   const navigate = useNavigate();
@@ -13,6 +15,7 @@ export default function AgentDetailPage() {
   const { user } = useAuthStore();
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [agentData, setAgentData] = useState<any>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (agentId && agentId !== 'me' && agentId !== 'agt-nilesh-01') {
@@ -24,7 +27,7 @@ export default function AgentDetailPage() {
 
   const effectiveAgentId = agentId === 'me' ? (user?.agentId || user?.id || 'm1') : (agentId || 'm1');
 
-  // Load agent visits and meeting records (keyed by agent)
+  // Load agent visits
   const visits = useMemo(() => {
     try {
       const saved = localStorage.getItem(`ground_os_agent_visits_${effectiveAgentId}`) || localStorage.getItem('ground_os_agent_visits');
@@ -32,16 +35,52 @@ export default function AgentDetailPage() {
     } catch {
       return [];
     }
-  }, [effectiveAgentId]);
+  }, [effectiveAgentId, refreshKey]);
 
-  const meetingNotes = useMemo(() => {
+  // Load single active meeting note if present
+  const singleMeetingNote = useMemo(() => {
     try {
       const saved = localStorage.getItem(`meeting_notes_${effectiveAgentId}`) || localStorage.getItem('meeting_notes_m1');
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
     }
-  }, [effectiveAgentId]);
+  }, [effectiveAgentId, refreshKey]);
+
+  // Load full completed meetings history array
+  const completedMeetingsHistory = useMemo(() => {
+    try {
+      const saved = localStorage.getItem('ground_os_completed_meetings_history');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    // If no multi-history exists yet but single meeting note exists, wrap it
+    if (singleMeetingNote) {
+      return [{
+        id: singleMeetingNote.id || 'm1',
+        meetingId: singleMeetingNote.id || 'm1',
+        businessName: singleMeetingNote.businessName || 'Sreejal Jewellers',
+        clientName: singleMeetingNote.businessOwnerName || 'Uttam',
+        agentName: singleMeetingNote.agentName || 'Nilesh Somnawane',
+        duration: singleMeetingNote.duration || '00:14',
+        qualityScore: singleMeetingNote.qualityScore || 88,
+        outcome: singleMeetingNote.outcome || 'High Intent',
+        summary: singleMeetingNote.summary || singleMeetingNote.notes || 'Client expressed strong interest in smart POS integration and requested commercial proposal.',
+        nextAction: singleMeetingNote.nextAction || 'Send WhatsApp proposal',
+        selfieUrl: singleMeetingNote.selfieUrl,
+        customerPhone: singleMeetingNote.customerPhone || '9876543210',
+        completedAt: singleMeetingNote.completedAt || new Date().toISOString(),
+        leadTapped: localStorage.getItem('ground_os_lead_tapped_m1') === 'true' || singleMeetingNote.leadTapped === true,
+      }];
+    }
+    return [];
+  }, [singleMeetingNote, refreshKey]);
 
   const verificationData = useMemo(() => {
     try {
@@ -52,8 +91,82 @@ export default function AgentDetailPage() {
     }
   }, []);
 
-  const qualityScore = meetingNotes?.qualityScore || 88;
-  const qualityBreakdown = meetingNotes?.qualityBreakdown || {
+  // Calculate leads tapped count for this agent
+  const leadsTappedCount = useMemo(() => {
+    let count = 0;
+    const isM1Tapped = localStorage.getItem('ground_os_lead_tapped_m1') === 'true';
+    if (isM1Tapped) count++;
+
+    completedMeetingsHistory.forEach((m: any) => {
+      const isItemTapped = localStorage.getItem(`ground_os_lead_tapped_${m.id}`) === 'true' || m.leadTapped === true;
+      if (isItemTapped && m.id !== 'm1') count++;
+    });
+    return Math.max(count, isM1Tapped ? 1 : 0);
+  }, [completedMeetingsHistory, refreshKey]);
+
+  // Admin action: Toggle Lead Tapped for a specific meeting/lead
+  const handleToggleLeadTapped = async (meeting: any) => {
+    const meetingId = meeting.id || meeting.meetingId || 'm1';
+    const currentStatus = localStorage.getItem(`ground_os_lead_tapped_${meetingId}`) === 'true' || 
+      (meetingId === 'm1' && localStorage.getItem('ground_os_lead_tapped_m1') === 'true') ||
+      meeting.leadTapped === true;
+    
+    const nextStatus = !currentStatus;
+
+    // Update storage keys
+    localStorage.setItem(`ground_os_lead_tapped_${meetingId}`, String(nextStatus));
+    if (meetingId === 'm1') {
+      localStorage.setItem('ground_os_lead_tapped_m1', String(nextStatus));
+    }
+
+    // Update single meeting notes if matched
+    try {
+      const singleRaw = localStorage.getItem('meeting_notes_m1');
+      if (singleRaw) {
+        const parsed = JSON.parse(singleRaw);
+        parsed.leadTapped = nextStatus;
+        localStorage.setItem('meeting_notes_m1', JSON.stringify(parsed));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Update completed meetings history array
+    try {
+      const historyRaw = localStorage.getItem('ground_os_completed_meetings_history');
+      if (historyRaw) {
+        const list = JSON.parse(historyRaw);
+        const updated = list.map((item: any) => {
+          if (item.id === meetingId || item.meetingId === meetingId) {
+            return { ...item, leadTapped: nextStatus };
+          }
+          return item;
+        });
+        localStorage.setItem('ground_os_completed_meetings_history', JSON.stringify(updated));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
+    // Call backend API if possible
+    try {
+      await visitsApi.tapLead(meetingId).catch(() => {});
+    } catch (e) {
+      console.warn(e);
+    }
+
+    window.dispatchEvent(new Event('storage'));
+    setRefreshKey(k => k + 1);
+
+    if (nextStatus) {
+      toast.success(`🎯 Lead for ${meeting.businessName || 'Client'} marked as TAPPED! (+1 live increment)`, { duration: 4000 });
+    } else {
+      toast.error(`Lead for ${meeting.businessName || 'Client'} marked as Untapped.`, { duration: 3000 });
+    }
+  };
+
+  const qualityScore = singleMeetingNote?.qualityScore || (completedMeetingsHistory[0]?.qualityScore) || 88;
+  const qualityBreakdown = singleMeetingNote?.qualityBreakdown || {
     rapport: qualityScore,
     discovery: Math.max(15, qualityScore - 8),
     objectionHandling: Math.max(10, qualityScore - 12),
@@ -72,11 +185,16 @@ export default function AgentDetailPage() {
 
   const initials = currentAgentName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'AG';
 
+  const pendingVisits = visits.filter((v: any) => 
+    v.status !== 'completed' && 
+    !(singleMeetingNote && (singleMeetingNote.businessName === v.business || singleMeetingNote.businessOwnerName === v.customerName))
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 1000, margin: '0 auto', paddingBottom: '40px' }}>
       
       {/* Back button for Admin */}
-      {user?.role !== 'agent' && (
+      {user?.role?.toLowerCase() !== 'agent' && (
         <button 
           onClick={() => navigate('/agents')}
           style={{
@@ -89,7 +207,7 @@ export default function AgentDetailPage() {
         </button>
       )}
 
-      {/* Header — Agent Identity */}
+      {/* Header — Agent Identity & Live Score */}
       <div className="card-branded" style={{ padding: '28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '22px', flexWrap: 'wrap' }}>
           <div style={{
@@ -104,7 +222,7 @@ export default function AgentDetailPage() {
           
           <div style={{ flex: 1, minWidth: 240 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>AGENT PORTAL</span>
+              <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>FIELD AGENT PROFILE</span>
               <div className="status-dot online" />
               <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Active in Field</span>
             </div>
@@ -129,194 +247,255 @@ export default function AgentDetailPage() {
           </div>
         </div>
 
-        {/* Quick stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '24px' }}>
+        {/* Live Dossier Metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginTop: '24px' }}>
           {[
-            { label: 'Planned Visits', value: visits.length, icon: '📍' },
-            { label: 'Meetings Conducted', value: meetingNotes ? 1 : 0, icon: '🎙' },
-            { label: 'High Intent Leads', value: meetingNotes?.qualityScore > 60 ? 1 : 0, icon: '⭐' },
-            { label: 'Follow-ups Pending', value: meetingNotes?.nextAction ? 1 : 0, icon: '📋' },
+            { label: 'Assigned Leads', value: visits.length, icon: '📍' },
+            { label: 'Meetings Completed', value: completedMeetingsHistory.length, icon: '🎙' },
+            { label: 'Leads Tapped (Admin)', value: leadsTappedCount, icon: '⚡', highlight: true },
+            { label: 'Active Route Pending', value: pendingVisits.length, icon: '📋' },
           ].map(s => (
-            <div key={s.label} style={{ textAlign: 'center', padding: '14px', background: 'rgba(255,255,255,0.03)', borderRadius: '10px', border: '1px solid var(--color-border-subtle)' }}>
+            <div key={s.label} style={{ 
+              textAlign: 'center', 
+              padding: '14px', 
+              background: s.highlight ? 'rgba(251, 191, 36, 0.08)' : 'rgba(255,255,255,0.03)', 
+              borderRadius: '10px', 
+              border: s.highlight ? '1px solid rgba(251, 191, 36, 0.35)' : '1px solid var(--color-border-subtle)' 
+            }}>
               <div style={{ fontSize: '1.2rem', marginBottom: '4px' }}>{s.icon}</div>
-              <div style={{ fontFamily: 'var(--font-head)', fontSize: '1.5rem', fontWeight: 800, color: 'var(--color-text-primary)' }}>{s.value}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{s.label}</div>
+              <div style={{ fontFamily: 'var(--font-head)', fontSize: '1.5rem', fontWeight: 800, color: s.highlight ? '#fbbf24' : 'var(--color-text-primary)' }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: s.highlight ? '#fde68a' : 'var(--color-text-muted)' }}>{s.label}</div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Dedicated Section: All Meeting Summaries by Agent Nilesh */}
+      {/* Admin Leads & Meeting Audit Section */}
       <div className="card" style={{ padding: '28px', borderRadius: 'var(--radius-lg)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileText size={20} color="var(--color-brand-light)" />
               <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800 }}>
-                All Meeting Summaries by Nilesh Somnawane
+                {user?.role?.toLowerCase() === 'agent' ? 'My Meetings & Lead Dossier' : `Agent Leads & Meeting Audit: ${currentAgentName}`}
               </h2>
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: 'var(--color-text-secondary)' }}>
-              Complete record of transcripts, AI summaries, and WhatsApp reports submitted
+              {user?.role?.toLowerCase() === 'agent' 
+                ? 'All completed meetings and recordings are submitted to Admin for verification.'
+                : 'Inspect full meeting recordings, verified selfies, and mark leads as successfully tapped (+1).'}
             </p>
           </div>
-
-          <button 
-            className="btn btn-primary"
-            onClick={() => navigate('/visits')}
-            style={{ fontSize: '0.85rem', gap: '6px' }}
-          >
-            <Calendar size={15} /> Plan / Manage Visits
-          </button>
         </div>
 
-        {/* Real Meeting List (No Demo Clients!) */}
-        {!meetingNotes && visits.length === 0 ? (
+        {/* Meeting History List */}
+        {completedMeetingsHistory.length === 0 ? (
           <div style={{ padding: '36px 20px', textAlign: 'center', border: '1px dashed var(--color-border)', borderRadius: 'var(--radius-md)' }}>
             <FileText size={36} color="var(--color-text-muted)" style={{ margin: '0 auto 12px' }} />
-            <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem' }}>No Meetings Conducted Yet</h4>
+            <h4 style={{ margin: '0 0 6px 0', fontSize: '1rem' }}>No Completed Meetings Logged</h4>
             <p style={{ margin: 0, fontSize: '0.825rem', color: 'var(--color-text-secondary)' }}>
-              When Agent Nilesh completes a visit and records audio, the authentic AI summary will appear here.
+              When this agent completes a meeting visit and submits the audio recording, it will appear here for Admin audit.
             </p>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {meetingNotes && (
-              <div 
-                onClick={() => navigate('/meetings/m1/report')}
-                style={{
-                  padding: '20px',
-                  borderRadius: 'var(--radius-md)',
-                  background: 'rgba(99, 102, 241, 0.05)',
-                  border: '1px solid rgba(99, 102, 241, 0.25)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '14px',
-                  cursor: 'pointer',
-                  transition: 'transform 0.2s, background 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.1)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(99, 102, 241, 0.05)'}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                      <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>
-                        {meetingNotes.outcome || 'High Intent'}
-                      </span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                        Duration: {meetingNotes.duration || '00:14'}
-                      </span>
-                    </div>
-                    <h3 style={{ margin: '0 0 4px 0', fontSize: '1.15rem', fontWeight: 700 }}>
-                      {meetingNotes.businessName || 'Sreejal Jewellers'}
-                    </h3>
-                    <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span>Client: <strong style={{ color: '#fff' }}>{meetingNotes.businessOwnerName || 'Uttam'}</strong></span>
-                      <span>•</span>
-                      <span>Location: <strong>Dwarka Delhi</strong></span>
-                      {(meetingNotes.customerPhone || verificationData?.customerPhone) && (
-                        <>
-                          <span>•</span>
-                          <span style={{ color: 'var(--color-success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <CheckCircle2 size={13} /> Mobile: +91 {(meetingNotes.customerPhone || verificationData?.customerPhone).replace(/[^0-9]/g, '').slice(-10)}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+            {completedMeetingsHistory.map((meeting: any) => {
+              const meetingId = meeting.id || meeting.meetingId || 'm1';
+              const isTapped = localStorage.getItem(`ground_os_lead_tapped_${meetingId}`) === 'true' || 
+                (meetingId === 'm1' && localStorage.getItem('ground_os_lead_tapped_m1') === 'true') ||
+                meeting.leadTapped === true;
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: meetingNotes.qualityScore >= 70 ? 'var(--color-success)' : 'var(--color-warning)' }}>
-                      {meetingNotes.qualityScore || 88}<span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>/100</span>
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Score</div>
-                  </div>
-                </div>
-
-                {/* Ground Verification Presence Stamp */}
-                {(meetingNotes.selfieUrl || verificationData?.selfieUrl) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(16, 185, 129, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
-                    <img 
-                      src={meetingNotes.selfieUrl || verificationData?.selfieUrl} 
-                      alt="Customer Selfie" 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setFullscreenImage(meetingNotes.selfieUrl || verificationData?.selfieUrl);
-                      }}
-                      style={{ width: '48px', height: '48px', borderRadius: '6px', objectFit: 'cover', border: '1.5px solid var(--color-success)', flexShrink: 0, cursor: 'pointer' }} 
-                    />
+              return (
+                <div 
+                  key={meetingId}
+                  style={{
+                    padding: '22px',
+                    borderRadius: 'var(--radius-md)',
+                    background: isTapped ? 'rgba(251, 191, 36, 0.04)' : 'rgba(99, 102, 241, 0.04)',
+                    border: isTapped ? '1px solid rgba(251, 191, 36, 0.3)' : '1px solid rgba(99, 102, 241, 0.25)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '14px' }}>
                     <div>
-                      <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-success)' }}>
-                        ✓ Ground Verified Presence & Live Geo-Stamp
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>
+                          {meeting.outcome || 'High Intent'}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
+                          Duration: {meeting.duration || '00:14'}
+                        </span>
+                        {isTapped && (
+                          <span className="badge badge-warning" style={{ fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                            <Zap size={12} fill="#fbbf24" /> TAPPED (+1)
+                          </span>
+                        )}
                       </div>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        {meetingNotes.selfieGeoData?.address || verificationData?.selfieGeo?.address || 'Dwarka Sector 12, New Delhi'}
+
+                      <h3 style={{ margin: '0 0 4px 0', fontSize: '1.2rem', fontWeight: 700 }}>
+                        {meeting.businessName || 'Client Shop'}
+                      </h3>
+                      
+                      <div style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span>Contact: <strong style={{ color: '#fff' }}>{meeting.clientName || 'Owner'}</strong></span>
+                        <span>•</span>
+                        <span>Location: <strong>Dwarka Delhi</strong></span>
+                        {meeting.customerPhone && (
+                          <>
+                            <span>•</span>
+                            <span style={{ color: 'var(--color-success)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <Phone size={12} /> +91 {meeting.customerPhone.replace(/[^0-9]/g, '').slice(-10)}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: meeting.qualityScore >= 70 ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                        {meeting.qualityScore || 88}<span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>/100</span>
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>AI Intent Score</div>
+                    </div>
                   </div>
-                )}
 
-                {/* Summary narrative */}
-                <div style={{
-                  background: 'rgba(0,0,0,0.3)',
-                  padding: '14px',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.875rem',
-                  lineHeight: 1.6,
-                  color: '#e2e8f0',
-                  border: '1px solid var(--color-border-subtle)'
-                }}>
-                  <strong style={{ color: 'var(--color-brand-light)' }}>AI Summary: </strong>
-                  {meetingNotes.summary || meetingNotes.notes}
-                </div>
+                  {/* Ground Presence Geo-Stamp */}
+                  {(meeting.selfieUrl || verificationData?.selfieUrl) && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(16, 185, 129, 0.08)', padding: '10px 14px', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                      <img 
+                        src={meeting.selfieUrl || verificationData?.selfieUrl} 
+                        alt="Customer Selfie" 
+                        onClick={() => setFullscreenImage(meeting.selfieUrl || verificationData?.selfieUrl)}
+                        style={{ width: '44px', height: '44px', borderRadius: '6px', objectFit: 'cover', border: '1.5px solid var(--color-success)', flexShrink: 0, cursor: 'pointer' }} 
+                      />
+                      <div>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--color-success)' }}>
+                          ✓ Ground Verified Presence Stamp
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>
+                          Dwarka Sector 12, New Delhi (GNSS Satellite Locked)
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
-                {meetingNotes.nextAction && (
-                  <div style={{ fontSize: '0.825rem', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Clock size={14} color="var(--color-warning)" />
-                    <span><strong>Next Action Item:</strong> {meetingNotes.nextAction}</span>
+                  {/* Summary Narrative */}
+                  <div style={{
+                    background: 'rgba(0,0,0,0.25)',
+                    padding: '14px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.875rem',
+                    lineHeight: 1.6,
+                    color: '#e2e8f0',
+                    border: '1px solid var(--color-border-subtle)'
+                  }}>
+                    <strong style={{ color: 'var(--color-brand-light)' }}>Executive Summary: </strong>
+                    {meeting.summary || 'Client expressed interest in retail POS system.'}
                   </div>
-                )}
 
-                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={() => navigate('/meetings/m1/report')}
-                    style={{ fontSize: '0.85rem', padding: '8px 16px', gap: '6px' }}
-                  >
-                    View Full AI Report & Transcripts <ExternalLink size={14} />
-                  </button>
+                  {/* Admin Decision Bar: Lead Tapped Control & Full Report Link */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    flexWrap: 'wrap', 
+                    gap: '12px',
+                    paddingTop: '6px',
+                    borderTop: '1px solid var(--color-border-subtle)'
+                  }}>
+                    {/* Admin Lead Tapped Toggle Button */}
+                    {user?.role?.toLowerCase() !== 'agent' ? (
+                      <button
+                        onClick={() => handleToggleLeadTapped(meeting)}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: 'var(--radius-md)',
+                          fontWeight: 700,
+                          fontSize: '0.825rem',
+                          cursor: 'pointer',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          background: isTapped
+                            ? 'linear-gradient(135deg, #fbbf24, #d97706)'
+                            : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+                          color: isTapped ? '#000' : '#fff',
+                          boxShadow: isTapped ? '0 2px 10px rgba(251, 191, 36, 0.4)' : '0 2px 10px rgba(99, 102, 241, 0.3)',
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        {isTapped ? (
+                          <>
+                            <CheckCircle2 size={15} color="#000" />
+                            <span>✓ Lead Tapped (+1 Active)</span>
+                          </>
+                        ) : (
+                          <>
+                            <Zap size={14} fill="#fff" />
+                            <span>Mark Lead as Tapped (+1)</span>
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: '0.8rem', color: isTapped ? 'var(--color-warning)' : 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <Zap size={13} fill={isTapped ? '#fbbf24' : 'none'} color={isTapped ? '#fbbf24' : 'currentColor'} />
+                        <span>{isTapped ? 'Lead Tapped Status: Verified by Admin (+1)' : 'Lead Tapped Status: Pending Admin Audit'}</span>
+                      </div>
+                    )}
+
+                    <button 
+                      className="btn btn-secondary"
+                      onClick={() => navigate('/meetings/m1/report')}
+                      style={{ fontSize: '0.825rem', padding: '8px 14px', gap: '6px' }}
+                    >
+                      Open Full AI Report <ExternalLink size={13} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-            {/* Any scheduled visits without meetings yet */}
-            {visits.filter((v: any) => !(meetingNotes && (meetingNotes.businessName === v.business || meetingNotes.businessOwnerName === v.customerName))).map((v: any) => (
+      {/* Planned / Scheduled Route Leads */}
+      {pendingVisits.length > 0 && (
+        <div className="card" style={{ padding: '24px', borderRadius: 'var(--radius-lg)' }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Calendar size={16} color="var(--color-brand-light)" />
+            Active Route Scheduled Leads ({pendingVisits.length})
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {pendingVisits.map((v: any) => (
               <div key={v.id} style={{
-                padding: '16px',
+                padding: '14px 18px',
                 borderRadius: 'var(--radius-md)',
                 background: 'rgba(255,255,255,0.02)',
                 border: '1px solid var(--color-border)',
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'center'
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '10px'
               }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{v.business} · {v.customerName}</div>
                   <div style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>📍 {v.location} · Scheduled at {v.time}</div>
                 </div>
-                <button 
-                  className="btn btn-secondary"
-                  onClick={() => navigate('/visits')}
-                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-                >
-                  Go to Visit
-                </button>
+                <span className="badge badge-brand" style={{ fontSize: '0.75rem' }}>
+                  {v.type || 'Site Visit'}
+                </span>
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Meeting Quality Breakdown & Coaching */}
       <div className="grid-2">

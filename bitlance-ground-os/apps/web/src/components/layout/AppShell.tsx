@@ -10,13 +10,12 @@ import TopBar from './TopBar';
 
 const adminNavItems = [
   { icon: LayoutDashboard, label: 'Command', to: '/command', title: 'CEO Command Center' },
-  { icon: Users, label: 'Agents', to: '/agents', title: 'Field Agent Management & Credentials' },
+  { icon: Users, label: 'Agents', to: '/agents', title: 'Field Agent Management & Leads' },
   { icon: MapPin, label: 'Visits', to: '/visits', title: 'Field Visits & Tracking' },
 ];
 
 const agentNavItems = [
-  { icon: MapPin, label: 'Visits', to: '/visits', title: 'My Visits & Meetings' },
-  { icon: Users, label: 'My Portal', to: '/agents/me', title: 'My Agent Portal' },
+  { icon: MapPin, label: 'Visits', to: '/visits', title: 'My Field Visits' },
 ];
 
 import { Component, ErrorInfo } from 'react';
@@ -56,7 +55,7 @@ export default function AppShell() {
     navigate('/login');
   };
 
-  const isAgent = user?.role === 'agent';
+  const isAgent = user?.role?.toLowerCase() === 'agent';
   const navItems = isAgent ? agentNavItems : adminNavItems;
 
   return (

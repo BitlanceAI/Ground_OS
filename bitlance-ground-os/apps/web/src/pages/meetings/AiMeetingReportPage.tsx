@@ -526,7 +526,7 @@ export default function AiMeetingReportPage() {
         </div>
       )}
 
-      {/* Interactive Lead Tapped Conversion Banner */}
+      {/* Lead Tapped Conversion Banner (Admin Decides / Agent Read-only) */}
       <div style={{
         padding: '20px 24px',
         borderRadius: 'var(--radius-lg)',
@@ -563,53 +563,68 @@ export default function AiMeetingReportPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '1.05rem', fontWeight: 800, color: isLeadTapped ? '#fbbf24' : '#fff' }}>
-                Lead Tapped Status: {isLeadTapped ? 'TAPPED & ACTIVE (+1)' : 'NOT TAPPED YET'}
+                Lead Tapped Status: {isLeadTapped ? 'TAPPED & VERIFIED BY ADMIN (+1)' : 'NOT TAPPED YET'}
               </span>
               <span className={`badge ${isLeadTapped ? 'badge-warning' : 'badge-neutral'}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
-                {isLeadTapped ? '✓ +1 IN AGENT REPORT' : 'ACTION REQUIRED'}
+                {isLeadTapped ? '✓ +1 CONFIRMED' : 'ADMIN AUDIT REQUIRED'}
               </span>
             </div>
             <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>
               {isLeadTapped
-                ? `Confirmed by Agent ${agentName}: This client has been successfully tapped for business deals. +1 added to your Leads Tapped live dossier.`
-                : `Did you tap this lead during this visit? Toggle to "Tapped" to automatically increment your Leads Tapped count in CEO Admin Reports.`}
+                ? `Marked as Tapped: This lead has been successfully tapped and verified in the Admin Command Portal.`
+                : user?.role?.toLowerCase() === 'agent'
+                  ? `Lead tapped status is reviewed and approved exclusively by Admin in the Admin Portal.`
+                  : `Admin Decision: Review this meeting and toggle below to mark this lead as successfully tapped (+1 in Agent Dossier).`}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleToggleLeadTapped}
-          disabled={togglingTap}
-          style={{
-            padding: '11px 22px',
+        {user?.role?.toLowerCase() !== 'agent' ? (
+          <button
+            onClick={handleToggleLeadTapped}
+            disabled={togglingTap}
+            style={{
+              padding: '11px 22px',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: 800,
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: isLeadTapped
+                ? 'linear-gradient(135deg, #fbbf24, #d97706)'
+                : 'linear-gradient(135deg, #6366f1, #4f46e5)',
+              color: isLeadTapped ? '#000' : '#fff',
+              boxShadow: isLeadTapped ? '0 4px 14px rgba(251, 191, 36, 0.4)' : '0 4px 14px rgba(99, 102, 241, 0.35)',
+              transition: 'all 0.2s',
+            }}
+            title={isLeadTapped ? 'Admin: Click to mark untapped' : 'Admin: Click to mark tapped (+1)'}
+          >
+            {isLeadTapped ? (
+              <>
+                <CheckCircle2 size={16} color="#000" />
+                <span>Lead is Tapped (+1)</span>
+              </>
+            ) : (
+              <>
+                <span>⚡ Admin: Mark Lead Tapped (+1)</span>
+              </>
+            )}
+          </button>
+        ) : (
+          <div style={{
+            padding: '8px 16px',
             borderRadius: 'var(--radius-md)',
-            fontWeight: 800,
-            fontSize: '0.875rem',
-            cursor: 'pointer',
-            border: 'none',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            background: isLeadTapped
-              ? 'linear-gradient(135deg, #fbbf24, #d97706)'
-              : 'linear-gradient(135deg, #6366f1, #4f46e5)',
-            color: isLeadTapped ? '#000' : '#fff',
-            boxShadow: isLeadTapped ? '0 4px 14px rgba(251, 191, 36, 0.4)' : '0 4px 14px rgba(99, 102, 241, 0.35)',
-            transition: 'all 0.2s',
-          }}
-          title={isLeadTapped ? 'Click to mark untapped' : 'Click to mark tapped (+1)'}
-        >
-          {isLeadTapped ? (
-            <>
-              <CheckCircle2 size={16} color="#000" />
-              <span>Lead is Tapped (+1)</span>
-            </>
-          ) : (
-            <>
-              <span>⚡ Mark as Lead Tapped (+1)</span>
-            </>
-          )}
-        </button>
+            background: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid var(--color-border-subtle)',
+            fontSize: '0.825rem',
+            color: 'var(--color-text-muted)'
+          }}>
+            Managed by Admin
+          </div>
+        )}
       </div>
 
       {/* Top 3 Executive Metrics */}

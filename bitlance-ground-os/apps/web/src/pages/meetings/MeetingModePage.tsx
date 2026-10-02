@@ -738,9 +738,31 @@ export default function MeetingModePage() {
 
     localStorage.setItem(`meeting_notes_${meetingId}`, JSON.stringify(reportData));
     localStorage.setItem(`meeting_transcript_${meetingId}`, JSON.stringify(pendingTranscriptItems));
-    // Keep legacy key for report pages that read 'meeting_notes_m1'
     localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
     localStorage.setItem('meeting_transcript_m1', JSON.stringify(pendingTranscriptItems));
+
+    // Save to historical meetings record for Admin review & mark visit as completed
+    try {
+      const historyRaw = localStorage.getItem('ground_os_completed_meetings_history');
+      const history = historyRaw ? JSON.parse(historyRaw) : [];
+      const updatedHistory = [{ ...reportData, id: meetingId, completedAt: new Date().toISOString() }, ...history.filter((h: any) => h.id !== meetingId && h.businessName !== businessName)];
+      localStorage.setItem('ground_os_completed_meetings_history', JSON.stringify(updatedHistory));
+
+      const visitsRaw = localStorage.getItem('ground_os_agent_visits');
+      if (visitsRaw) {
+        const visitsList = JSON.parse(visitsRaw);
+        const updatedVisits = visitsList.map((v: any) => {
+          if (v.business === businessName || v.customerName === businessOwnerName || v.status === 'in_progress') {
+            return { ...v, status: 'completed', completedAt: new Date().toISOString() };
+          }
+          return v;
+        });
+        localStorage.setItem('ground_os_agent_visits', JSON.stringify(updatedVisits));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
     window.dispatchEvent(new Event('storage'));
 
     setNotesSaved(true);
@@ -806,9 +828,31 @@ export default function MeetingModePage() {
 
     localStorage.setItem(`meeting_notes_${meetingId}`, JSON.stringify(reportData));
     localStorage.setItem(`meeting_transcript_${meetingId}`, JSON.stringify(pendingTranscriptItems));
-    // Keep legacy key for report pages that read 'meeting_notes_m1'
     localStorage.setItem('meeting_notes_m1', JSON.stringify(reportData));
     localStorage.setItem('meeting_transcript_m1', JSON.stringify(pendingTranscriptItems));
+
+    // Save to historical meetings record for Admin review & mark visit as completed
+    try {
+      const historyRaw = localStorage.getItem('ground_os_completed_meetings_history');
+      const history = historyRaw ? JSON.parse(historyRaw) : [];
+      const updatedHistory = [{ ...reportData, id: meetingId, completedAt: new Date().toISOString() }, ...history.filter((h: any) => h.id !== meetingId && h.businessName !== businessName)];
+      localStorage.setItem('ground_os_completed_meetings_history', JSON.stringify(updatedHistory));
+
+      const visitsRaw = localStorage.getItem('ground_os_agent_visits');
+      if (visitsRaw) {
+        const visitsList = JSON.parse(visitsRaw);
+        const updatedVisits = visitsList.map((v: any) => {
+          if (v.business === businessName || v.customerName === businessOwnerName || v.status === 'in_progress') {
+            return { ...v, status: 'completed', completedAt: new Date().toISOString() };
+          }
+          return v;
+        });
+        localStorage.setItem('ground_os_agent_visits', JSON.stringify(updatedVisits));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+
     window.dispatchEvent(new Event('storage'));
 
     setNotesSaved(true);
@@ -1303,7 +1347,7 @@ export default function MeetingModePage() {
               borderRadius: 'var(--radius-md)',
               background: analysisResult.qualityScore >= 70 ? 'rgba(16, 185, 129, 0.08)' : analysisResult.qualityScore >= 40 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
               border: `1px solid ${analysisResult.qualityScore >= 70 ? 'rgba(16, 185, 129, 0.3)' : analysisResult.qualityScore >= 40 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-              marginBottom: '16px',
+              marginBottom: '20px',
               textAlign: 'left'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
@@ -1319,39 +1363,6 @@ export default function MeetingModePage() {
               </p>
             </div>
           )}
-
-          {/* Lead Tapped Interactive Toggle Card */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '14px 18px',
-            borderRadius: 'var(--radius-md)',
-            background: isLeadTapped ? 'rgba(251, 191, 36, 0.12)' : 'rgba(255, 255, 255, 0.02)',
-            border: isLeadTapped ? '1px solid rgba(251, 191, 36, 0.4)' : '1px solid var(--color-border-subtle)',
-            marginBottom: '20px',
-            textAlign: 'left',
-            flexWrap: 'wrap',
-            gap: '10px'
-          }}>
-            <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isLeadTapped ? '#fbbf24' : '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Zap size={15} fill={isLeadTapped ? '#fbbf24' : 'none'} color="#fbbf24" />
-                Lead Status: {isLeadTapped ? 'Tapped (+1 Live Counter)' : 'Not Marked as Tapped'}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-                {isLeadTapped ? 'This lead increments the agent’s Tapped counter (+1) across CEO dashboards.' : 'Marking this lead as tapped adds +1 to Agent Nilesh’s conversion report.'}
-              </div>
-            </div>
-
-            <button
-              className={`btn ${isLeadTapped ? 'btn-success' : 'btn-secondary'}`}
-              onClick={handleToggleLeadTapped}
-              style={{ fontSize: '0.8rem', padding: '8px 14px', fontWeight: 700 }}
-            >
-              {isLeadTapped ? '✓ Lead Tapped (+1)' : '⚡ Mark as Tapped (+1)'}
-            </button>
-          </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
             <button 

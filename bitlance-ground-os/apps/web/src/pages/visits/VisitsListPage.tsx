@@ -127,7 +127,12 @@ export default function VisitsListPage() {
   const [isDetectingGPS, setIsDetectingGPS] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const remainingCount = visits.filter(v => v.status === 'upcoming' && !(meetingNotes && (meetingNotes.businessName === v.business || meetingNotes.businessOwnerName === v.customerName))).length;
+  const activeVisits = visits.filter(v => 
+    v.status !== 'completed' && 
+    !(meetingNotes && (meetingNotes.businessName === v.business || meetingNotes.businessOwnerName === v.customerName))
+  );
+
+  const remainingCount = activeVisits.length;
 
   const handleLocationInputChange = async (val: string) => {
     setLocation(val);
@@ -269,20 +274,6 @@ export default function VisitsListPage() {
     toast.success(`Removed visit with ${name}`);
   };
 
-  const handleClearAll = () => {
-    setVisits([]);
-    try {
-      localStorage.removeItem('ground_os_agent_visits');
-      localStorage.removeItem('ground_os_active_visit_tracking');
-      localStorage.removeItem('meeting_notes_m1');
-      localStorage.removeItem('meeting_transcript_m1');
-      window.dispatchEvent(new Event('storage'));
-    } catch (e) {
-      console.error(e);
-    }
-    toast.success('Cleared all visits and demo data.');
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 840, margin: '0 auto', paddingBottom: '40px' }}>
       
@@ -293,22 +284,11 @@ export default function VisitsListPage() {
             My Visits Today
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', margin: 0 }}>
-            Agent: <strong style={{ color: '#fff' }}>Nilesh Somnawane</strong> · Territory: <strong style={{ color: '#fff' }}>Delhi NCR</strong> · <strong style={{ color: 'var(--color-brand-light)' }}>{remainingCount} scheduled visits</strong> remaining.
+            Agent: <strong style={{ color: '#fff' }}>Nilesh Somnawane</strong> · Territory: <strong style={{ color: '#fff' }}>Delhi NCR</strong> · <strong style={{ color: 'var(--color-brand-light)' }}>{remainingCount} active visits</strong> pending.
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          {visits.length > 0 && (
-            <button
-              className="btn btn-ghost"
-              onClick={handleClearAll}
-              style={{ gap: '6px', color: 'var(--color-text-muted)', fontSize: '0.85rem' }}
-              title="Remove all visits and start fresh"
-            >
-              <Trash2 size={15} />
-              Start Fresh
-            </button>
-          )}
           <button 
             className="btn btn-primary"
             onClick={() => setIsPlanModalOpen(true)}
@@ -322,23 +302,23 @@ export default function VisitsListPage() {
 
       {/* Visits List */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {visits.length === 0 ? (
+        {activeVisits.length === 0 ? (
           <div className="card" style={{ padding: '48px 24px', textAlign: 'center' }}>
             <Calendar size={48} color="var(--color-brand-light)" style={{ margin: '0 auto 16px', opacity: 0.7 }} />
-            <h3 style={{ marginBottom: '8px' }}>No Visits Planned Yet</h3>
+            <h3 style={{ marginBottom: '8px' }}>
+              {visits.length > 0 ? 'All Visits Completed!' : 'No Visits Planned Yet'}
+            </h3>
             <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', maxWidth: 440, margin: '0 auto 20px' }}>
-              Only client visits added by Agent Nilesh are shown here. Plan your visit to let Ground OS track meetings and route intelligence.
+              {visits.length > 0
+                ? 'All completed meetings have been automatically logged to the Admin Command Dossier.'
+                : 'Only client visits planned for your route are shown here. Plan your visit to let Ground OS track meetings and route intelligence.'}
             </p>
             <button className="btn btn-primary" onClick={() => setIsPlanModalOpen(true)} style={{ gap: '8px' }}>
-              <Plus size={16} /> Plan Your First Visit
+              <Plus size={16} /> Plan New Visit
             </button>
           </div>
         ) : (
-          visits.map(visit => {
-            const isClosed = visit.status === 'completed' || (
-              meetingNotes && (meetingNotes.businessName === visit.business || meetingNotes.businessOwnerName === visit.customerName)
-            );
-
+          activeVisits.map(visit => {
             return (
               <div 
                 key={visit.id} 
@@ -350,11 +330,9 @@ export default function VisitsListPage() {
                   alignItems: 'center', 
                   flexWrap: 'wrap',
                   gap: '16px',
-                  borderLeft: isClosed 
-                    ? '4px solid var(--color-success)' 
-                    : visit.priority === 'HIGH' 
-                      ? '4px solid var(--color-brand)' 
-                      : '4px solid var(--color-border)'
+                  borderLeft: visit.priority === 'HIGH' 
+                    ? '4px solid var(--color-brand)' 
+                    : '4px solid var(--color-border)'
                 }}
               >
                 {/* Left Details */}
@@ -388,9 +366,7 @@ export default function VisitsListPage() {
                       <h3 style={{ fontSize: '1.125rem', fontWeight: 700, margin: 0 }}>
                         {visit.customerName}
                       </h3>
-                      {isClosed ? (
-                        <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Meeting Closed</span>
-                      ) : visit.priority === 'HIGH' ? (
+                      {visit.priority === 'HIGH' ? (
                         <span className="badge badge-error" style={{ fontSize: '0.7rem' }}>High Priority</span>
                       ) : null}
                     </div>
@@ -424,46 +400,21 @@ export default function VisitsListPage() {
 
                 {/* Right Action Buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  {isClosed ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span className="badge badge-success" style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <Check size={14} /> Closed
-                      </span>
-                      {(() => {
-                        const tapped = localStorage.getItem('ground_os_lead_tapped_m1') === 'true' || meetingNotes?.leadTapped === true;
-                        return tapped ? (
-                          <span className="badge badge-warning" style={{ padding: '6px 10px', fontSize: '0.75rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                            <Zap size={12} fill="#fbbf24" /> Tapped (+1)
-                          </span>
-                        ) : null;
-                      })()}
-                      <button 
-                        className="btn btn-secondary"
-                        onClick={() => navigate('/meetings/m1/report')}
-                        style={{ padding: '8px 14px', fontSize: '0.85rem' }}
-                      >
-                        View Summary <ChevronRight size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      <button 
-                        className="btn btn-primary" 
-                        onClick={() => handleStartVisit(visit)}
-                        style={{ padding: '10px 18px', gap: '6px' }}
-                      >
-                        {visit.status === 'in_progress' ? 'Resume Meeting' : 'Start Visit'} <ChevronRight size={16} />
-                      </button>
-                      <button 
-                        className="btn btn-ghost" 
-                        onClick={() => handleDeleteVisit(visit.id, visit.customerName)}
-                        title="Delete Visit"
-                        style={{ padding: '10px', color: 'var(--color-text-muted)' }}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </>
-                  )}
+                  <button 
+                    className="btn btn-primary" 
+                    onClick={() => handleStartVisit(visit)}
+                    style={{ padding: '10px 18px', gap: '6px' }}
+                  >
+                    {visit.status === 'in_progress' ? 'Resume Meeting' : 'Start Visit'} <ChevronRight size={16} />
+                  </button>
+                  <button 
+                    className="btn btn-ghost" 
+                    onClick={() => handleDeleteVisit(visit.id, visit.customerName)}
+                    title="Delete Visit"
+                    style={{ padding: '10px', color: 'var(--color-text-muted)' }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
                 </div>
               </div>
             );
