@@ -17,6 +17,7 @@ export default function CommandCenterPage() {
   const [agents, setAgents] = useState<any[]>([]);
   const [tick, setTick] = useState(0);
   const [liveLocation, setLiveLocation] = useState<{ lat: number; lng: number; address?: string; isLiveGPS?: boolean } | null>(null);
+  const [selectedMapAgentId, setSelectedMapAgentId] = useState<string>('all');
 
   // Schedule Meeting Engine Modal State
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
@@ -523,7 +524,12 @@ export default function CommandCenterPage() {
               ))}
             </div>
           </div>
-          <LiveAgentMap agents={agents} destinationPlace={activeDestination} />
+          <LiveAgentMap
+            agents={agents}
+            destinationPlace={activeDestination}
+            selectedAgentId={selectedMapAgentId}
+            onSelectAgent={(agentId) => setSelectedMapAgentId(agentId)}
+          />
         </div>
 
         {/* AI Priority Feed */}
@@ -682,13 +688,28 @@ export default function CommandCenterPage() {
                     <CalendarPlus size={13} /> Schedule Meeting
                   </button>
 
-                  <button
-                    className="btn btn-secondary"
-                    style={{ fontSize: '0.75rem', padding: '5px 12px', gap: '5px' }}
-                    onClick={() => navigate('/agents/agt-nilesh-01')}
-                  >
-                    Portal →
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ fontSize: '0.75rem', padding: '5px 10px', gap: '4px', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)' }}
+                      onClick={() => {
+                        setSelectedMapAgentId(agent.id);
+                        window.scrollTo({ top: 350, behavior: 'smooth' });
+                        toast.success(`Shifting map focus to ${agent.name || agent.firstName}...`);
+                      }}
+                      title="Focus map on this agent"
+                    >
+                      <Navigation size={11} fill="#10b981" /> Live Map
+                    </button>
+
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.75rem', padding: '5px 12px', gap: '5px' }}
+                      onClick={() => navigate('/agents/agt-nilesh-01')}
+                    >
+                      Portal →
+                    </button>
+                  </div>
                 </div>
               </div>
             );
