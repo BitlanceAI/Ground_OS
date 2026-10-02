@@ -473,20 +473,8 @@ export default function VisitsListPage() {
 
       {/* Plan New Visit Modal Dialog */}
       {isPlanModalOpen && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(9, 14, 26, 0.85)',
-          backdropFilter: 'blur(10px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 150, padding: '16px'
-        }}>
-          <div className="card" style={{
-            width: '100%', maxWidth: '560px',
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-lg)',
-            padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px'
-          }}>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setIsPlanModalOpen(false); }}>
+          <div className="modal-dialog">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Plus size={20} color="var(--color-brand-light)" />
@@ -501,7 +489,7 @@ export default function VisitsListPage() {
             </div>
 
             <form onSubmit={handleCreateVisit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="modal-form-grid-2">
                 <div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '6px' }}>
                     <Building size={14} /> Shop / Business Name *
@@ -531,7 +519,7 @@ export default function VisitsListPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="modal-form-grid-2">
                 <div style={{ position: 'relative' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)', margin: 0 }}>
@@ -634,7 +622,7 @@ export default function VisitsListPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+              <div className="modal-form-grid-2">
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}>

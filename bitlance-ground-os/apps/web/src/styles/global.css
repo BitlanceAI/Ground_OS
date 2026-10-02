@@ -676,23 +676,93 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-4); }
 .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--space-3); }
 
-/* ── Dashboard Layout ───────────────────────────────────────── */
-.dashboard-layout {
+/* ── Dashboard & Split Layouts ─────────────────────────────── */
+.dashboard-layout, .responsive-split-layout {
   display: grid;
   grid-template-columns: 1fr 360px;
   gap: var(--space-5);
   margin-bottom: var(--space-3);
+  align-items: start;
+}
+
+/* ── Modal Standard Styles ─────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(9, 14, 26, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 580px;
+  max-height: 90vh;
+  max-height: 90dvh;
+  overflow-y: auto;
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+  padding: var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+/* ── Meeting Mode Stepper & Styling ────────────────────────── */
+.meeting-stepper {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.meeting-step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.meeting-step-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
 }
 
 /* ── Responsive Media Queries ───────────────────────────────── */
-/* Laptops & Tablets (1024px and below) */
+/* Laptops & Tablets Landscape (1024px and below) */
 @media (max-width: 1024px) {
   .grid-6 { grid-template-columns: repeat(3, 1fr); }
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   
-  .dashboard-layout {
+  .dashboard-layout, .responsive-split-layout {
     grid-template-columns: 1fr;
-    min-height: auto;
+    gap: var(--space-4);
   }
 }
 
@@ -706,10 +776,32 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 
 /* Tablets Portrait & Large Mobile (768px and below) */
 @media (max-width: 768px) {
-  .grid-6 { grid-template-columns: repeat(2, 1fr); }
-  .grid-4 { grid-template-columns: repeat(1, 1fr); }
+  .grid-6 { grid-template-columns: repeat(2, 1fr); gap: var(--space-2); }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .grid-3 { grid-template-columns: repeat(1, 1fr); }
   .grid-2 { grid-template-columns: repeat(1, 1fr); }
+  
+  .metric-card {
+    padding: var(--space-3) var(--space-4);
+  }
+  .metric-value {
+    font-size: 1.5rem;
+  }
+  .metric-label {
+    font-size: 0.75rem;
+  }
+
+  .modal-form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .meeting-stepper {
+    padding: 10px 12px;
+    gap: 4px;
+  }
+  .meeting-step-label {
+    font-size: 0.72rem !important;
+  }
   
   .app-shell { 
     flex-direction: column; 
@@ -803,7 +895,22 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
 
 /* Small Mobile (480px and below) */
 @media (max-width: 480px) {
-  .grid-6 { grid-template-columns: 1fr; }
-  .page-content { padding: var(--space-3); }
+  .grid-6 { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .grid-4 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+  .page-content { padding: 12px 10px 48px 10px; }
+  .modal-dialog { padding: var(--space-4); }
+  
+  .meeting-stepper {
+    flex-direction: row;
+    justify-content: space-around;
+  }
+  .meeting-step-label {
+    display: none;
+  }
+  .meeting-step-item {
+    flex: 0 0 auto;
+  }
 }
+
 

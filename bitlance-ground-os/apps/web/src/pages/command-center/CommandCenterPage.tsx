@@ -718,13 +718,7 @@ export default function CommandCenterPage() {
       </div>
 
       {/* Appointments & Active Agent Section — 2 Columns */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 360px',
-        gap: 'var(--space-5)',
-        alignItems: 'start',
-        marginTop: '4px',
-      }}>
+      <div className="responsive-split-layout" style={{ marginTop: '4px' }}>
         {/* Left Column: Today's Appointments & Field Visits */}
         <div>
           <div className="section-header">
@@ -886,30 +880,14 @@ export default function CommandCenterPage() {
       {/* ── SCHEDULE MEETING MODAL WITH LIVE AGENT WORKLOAD COUNT ── */}
       {isScheduleModalOpen && (
         <div
-          style={{
-            position: 'fixed', inset: 0, zIndex: 1000,
-            background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
-          }}
+          className="modal-backdrop"
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsScheduleModalOpen(false);
           }}
         >
-          <div
-            style={{
-              background: '#0f172a',
-              border: '1px solid rgba(99, 102, 241, 0.3)',
-              borderRadius: 'var(--radius-lg)',
-              maxWidth: 580,
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              padding: '24px 28px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
-            }}
-          >
+          <div className="modal-dialog">
             {/* Modal Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{ width: 38, height: 38, borderRadius: '10px', background: 'rgba(99, 102, 241, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6366f1' }}>
                   <CalendarPlus size={20} />
@@ -997,7 +975,7 @@ export default function CommandCenterPage() {
               </div>
 
               {/* STEP 2: Meeting & Client Details */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="modal-form-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                     Client Name *
@@ -1027,7 +1005,7 @@ export default function CommandCenterPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="modal-form-grid-2">
                 <div>
                   <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: '4px' }}>
                     Shop / Company Name

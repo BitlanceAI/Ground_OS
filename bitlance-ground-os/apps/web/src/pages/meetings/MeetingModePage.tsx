@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   Mic, Square, CheckCircle2, ChevronRight, 
   User, Building, FileText, Edit3, X, Save, Clock, Radio, Sparkles, Shield, AlertCircle,
-  Camera, MapPin, Phone, Smartphone, MessageCircle, Send
+  Camera, MapPin, Phone, Smartphone, MessageCircle, Send, Zap
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { evaluateMeetingTranscript, MeetingAnalysisResult } from '../../lib/meeting-evaluator';
@@ -48,6 +48,35 @@ export default function MeetingModePage() {
     return (location.state as any)?.purpose || 'Retail inventory management & commercial display software pitch';
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Lead Tapped state
+  const [isLeadTapped, setIsLeadTapped] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('ground_os_lead_tapped_m1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleToggleLeadTapped = () => {
+    const nextVal = !isLeadTapped;
+    setIsLeadTapped(nextVal);
+    localStorage.setItem('ground_os_lead_tapped_m1', String(nextVal));
+    try {
+      const notesRaw = localStorage.getItem('meeting_notes_m1');
+      if (notesRaw) {
+        const notesObj = JSON.parse(notesRaw);
+        notesObj.leadTapped = nextVal;
+        localStorage.setItem('meeting_notes_m1', JSON.stringify(notesObj));
+      }
+    } catch {}
+    window.dispatchEvent(new Event('storage'));
+    if (nextVal) {
+      toast.success('Lead marked as Tapped! (+1 live agent count updated)', { icon: '⚡' });
+    } else {
+      toast.success('Lead marked as untapped', { icon: 'ℹ️' });
+    }
+  };
 
   // Post-meeting form state
   const [showPostMeetingForm, setShowPostMeetingForm] = useState(false);
@@ -799,15 +828,20 @@ export default function MeetingModePage() {
         onSkip={handlePostMeetingSkip}
       />
     )}
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px', maxWidth: 640, margin: '0 auto', paddingBottom: '40px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: 660, margin: '0 auto', paddingBottom: '48px', width: '100%' }}>
       {/* Header */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-          <span className="badge badge-brand" style={{ fontSize: '0.75rem', letterSpacing: '0.04em' }}>FIELD OS</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+          <span className="badge badge-brand" style={{ fontSize: '0.72rem', letterSpacing: '0.04em' }}>FIELD OS</span>
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>•</span>
-          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)' }}>Delhi NCR Hub</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--color-text-secondary)' }}>Delhi NCR Hub</span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>•</span>
+          <span className="badge badge-success" style={{ fontSize: '0.7rem', gap: '4px' }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#10b981', display: 'inline-block', boxShadow: '0 0 5px #10b981' }} />
+            GPS Active
+          </span>
         </div>
-        <h1 style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '6px' }}>
+        <h1 style={{ fontSize: '1.65rem', fontWeight: 800, letterSpacing: '-0.02em', marginBottom: '4px' }}>
           Field Sales Meeting
         </h1>
         <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.875rem', margin: 0 }}>
@@ -816,32 +850,28 @@ export default function MeetingModePage() {
       </div>
 
       {/* Modern Phase Progress Stepper */}
-      <div style={{
-        background: 'rgba(255, 255, 255, 0.02)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '16px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
+      <div className="meeting-stepper">
         {phases.map((p, i) => (
-          <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <div style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: p.done ? 'var(--color-brand)' : phase === p.id ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255,255,255,0.05)',
-              border: `2px solid ${p.done || phase === p.id ? 'var(--color-brand)' : 'rgba(255,255,255,0.1)'}`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: p.done || phase === p.id ? '#fff' : 'var(--color-text-muted)',
-              fontSize: '0.75rem', fontWeight: 700
-            }}>
+          <div key={p.id} className="meeting-step-item">
+            <div
+              className="meeting-step-badge"
+              style={{
+                background: p.done ? 'var(--color-brand)' : phase === p.id ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255,255,255,0.05)',
+                border: `2px solid ${p.done || phase === p.id ? 'var(--color-brand)' : 'rgba(255,255,255,0.1)'}`,
+                color: p.done || phase === p.id ? '#fff' : 'var(--color-text-muted)',
+                boxShadow: phase === p.id ? '0 0 12px rgba(99, 102, 241, 0.4)' : 'none',
+              }}
+            >
               {p.done ? <CheckCircle2 size={15} /> : i + 1}
             </div>
-            <span style={{
-              fontSize: '0.8125rem',
-              fontWeight: phase === p.id ? 600 : 400,
-              color: phase === p.id ? '#fff' : p.done ? 'var(--color-text-secondary)' : 'var(--color-text-muted)'
-            }}>
+            <span
+              className="meeting-step-label"
+              style={{
+                fontSize: '0.8125rem',
+                fontWeight: phase === p.id ? 700 : 400,
+                color: phase === p.id ? '#fff' : p.done ? 'var(--color-text-secondary)' : 'var(--color-text-muted)',
+              }}
+            >
               {p.label}
             </span>
           </div>
@@ -850,25 +880,26 @@ export default function MeetingModePage() {
 
       {/* Phase 1: Arrive & Details */}
       {phase === 'arrive' && (
-        <div className="card" style={{ padding: '32px 28px', borderRadius: 'var(--radius-lg)' }}>
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+        <div className="card" style={{ padding: '28px 24px', borderRadius: 'var(--radius-lg)', background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(13, 20, 36, 0.95) 100%)', border: '1px solid var(--color-border)' }}>
+          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
             <div style={{
-              width: 54, height: 54, borderRadius: '50%',
-              background: 'rgba(99, 102, 241, 0.12)', border: '1px solid rgba(99, 102, 241, 0.3)',
+              width: 52, height: 52, borderRadius: '50%',
+              background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.35)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 14px'
+              margin: '0 auto 12px',
+              boxShadow: '0 0 20px rgba(99, 102, 241, 0.2)'
             }}>
-              <Building size={26} color="var(--color-brand-light)" />
+              <Building size={24} color="var(--color-brand-light)" />
             </div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '6px' }}>Verify Visit Details</h3>
-            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.85rem', maxWidth: 440, margin: '0 auto' }}>
-              Confirm the shop and client details before starting live meeting capture.
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '4px' }}>Verify Visit Details</h3>
+            <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.84rem', maxWidth: 440, margin: '0 auto' }}>
+              Confirm shop & client details before starting live meeting capture.
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--color-text-secondary)' }}>
                 <Building size={14} /> Shop / Company Name *
               </label>
               <input 
@@ -876,12 +907,13 @@ export default function MeetingModePage() {
                 value={businessName} 
                 onChange={(e) => setBusinessName(e.target.value)}
                 placeholder="Enter shop/company name (e.g. Sreejal Jewellers)"
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'white', fontSize: '0.875rem' }}
+                className="input"
+                style={{ width: '100%', padding: '11px 14px', fontSize: '0.875rem' }}
               />
             </div>
             
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-secondary)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--color-text-secondary)' }}>
                 <User size={14} /> Business Owner / Decision Maker *
               </label>
               <input 
@@ -889,35 +921,37 @@ export default function MeetingModePage() {
                 value={businessOwnerName} 
                 onChange={(e) => setBusinessOwnerName(e.target.value)}
                 placeholder="Enter owner/client name (e.g. Uttam)"
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'white', fontSize: '0.875rem' }}
+                className="input"
+                style={{ width: '100%', padding: '11px 14px', fontSize: '0.875rem' }}
               />
             </div>
 
             <div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text-muted)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', fontWeight: 600, marginBottom: '6px', color: 'var(--color-text-muted)' }}>
                 <FileText size={14} /> Purpose of Visit
               </label>
               <textarea 
                 value={purposeOfVisit} 
                 onChange={(e) => setPurposeOfVisit(e.target.value)}
                 placeholder="E.g., Pitch retail POS & inventory management system..."
-                rows={3}
-                style={{ width: '100%', padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'var(--color-bg-elevated)', color: 'white', fontFamily: 'inherit', fontSize: '0.875rem', resize: 'none' }}
+                rows={2}
+                className="input"
+                style={{ width: '100%', padding: '10px 14px', fontSize: '0.85rem', resize: 'vertical' }}
               />
             </div>
           </div>
 
-          {/* Mandatory Verification */}
+          {/* Mandatory Ground Verification */}
           <div style={{ marginBottom: '24px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
-            <h4 style={{ fontSize: '0.9rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h4 style={{ fontSize: '0.88rem', fontWeight: 700, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Shield size={16} color="var(--color-success)" />
               Mandatory Ground Verification
             </h4>
             
             {/* Step 1: Customer Phone + OTP */}
-            <div style={{ marginBottom: '16px', padding: '14px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? '3px solid #25D366' : '3px solid var(--color-success)' }}>
+            <div style={{ marginBottom: '14px', padding: '14px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? '3px solid #25D366' : '3px solid var(--color-success)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#25D366' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px', color: '#25D366' }}>
                   <MessageCircle size={15} /> 1. WhatsApp Customer OTP Verification
                 </span>
                 {(verificationStep === 'otp_verified' || verificationStep === 'selfie_captured') && <CheckCircle2 size={16} color="var(--color-success)" />}
@@ -926,13 +960,14 @@ export default function MeetingModePage() {
               {verificationStep === 'unverified' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '4px', display: 'block' }}>CUSTOMER WHATSAPP PHONE NUMBER</label>
+                    <label style={{ fontSize: '0.72rem', color: 'var(--color-text-muted)', fontWeight: 600, marginBottom: '4px', display: 'block' }}>CUSTOMER WHATSAPP PHONE NUMBER</label>
                     <input 
                       type="tel" 
                       placeholder="e.g. 9876543210" 
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}
+                      className="input"
+                      style={{ width: '100%', padding: '10px 12px', fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}
                       maxLength={13}
                     />
                   </div>
@@ -947,6 +982,7 @@ export default function MeetingModePage() {
                       fontSize: '0.85rem', 
                       gap: '6px', 
                       fontWeight: 700,
+                      justifyContent: 'center',
                       opacity: customerPhone.replace(/[^0-9]/g, '').length < 10 ? 0.5 : 1 
                     }}
                   >
@@ -958,7 +994,7 @@ export default function MeetingModePage() {
               {verificationStep === 'otp_sent' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <div style={{
-                    padding: '10px 12px',
+                    padding: '8px 12px',
                     borderRadius: '6px',
                     background: 'rgba(37, 211, 102, 0.1)',
                     border: '1px solid rgba(37, 211, 102, 0.3)',
@@ -966,19 +1002,18 @@ export default function MeetingModePage() {
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     flexWrap: 'wrap',
-                    gap: '8px',
+                    gap: '6px',
                     fontSize: '0.78rem'
                   }}>
                     <span style={{ color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP sent to customer
+                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP dispatched to customer
                     </span>
-
                   </div>
 
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
                       type="text" 
-                      placeholder="Enter 4-digit OTP" 
+                      placeholder="4-digit OTP" 
                       value={otpValue}
                       onChange={(e) => {
                         const v = e.target.value.replace(/[^0-9]/g, '');
@@ -987,7 +1022,8 @@ export default function MeetingModePage() {
                           handleVerifyOTP(v);
                         }
                       }}
-                      style={{ flex: 1, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', background: 'rgba(0,0,0,0.2)', color: '#fff', fontFamily: 'var(--font-mono)', fontSize: '1rem', letterSpacing: '0.3em', textAlign: 'center' }}
+                      className="input"
+                      style={{ flex: 1, padding: '10px 12px', fontFamily: 'var(--font-mono)', fontSize: '1.1rem', letterSpacing: '0.3em', textAlign: 'center' }}
                       maxLength={4}
                       autoFocus
                     />
@@ -1014,8 +1050,8 @@ export default function MeetingModePage() {
               
               {(verificationStep === 'otp_verified' || verificationStep === 'selfie_captured') && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <CheckCircle2 size={14} color="var(--color-success)" />
-                  <span style={{ fontSize: '0.8rem', color: 'var(--color-success)', fontWeight: 600 }}>Verified · +91 {customerPhone.replace(/[^0-9]/g, '').slice(-10)}</span>
+                  <CheckCircle2 size={15} color="var(--color-success)" />
+                  <span style={{ fontSize: '0.82rem', color: 'var(--color-success)', fontWeight: 600 }}>WhatsApp Verified · +91 {customerPhone.replace(/[^0-9]/g, '').slice(-10)}</span>
                 </div>
               )}
             </div>
@@ -1023,7 +1059,7 @@ export default function MeetingModePage() {
             {/* Step 2: Selfie with Live Camera */}
             <div style={{ padding: '14px', background: 'var(--color-bg-elevated)', borderRadius: '8px', borderLeft: verificationStep === 'otp_verified' ? '3px solid var(--color-brand)' : verificationStep === 'selfie_captured' ? '3px solid var(--color-success)' : '3px solid transparent', opacity: verificationStep === 'unverified' || verificationStep === 'otp_sent' ? 0.5 : 1 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '0.84rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <Camera size={14} /> 2. Geo-Tagged Selfie with Customer
                 </span>
                 {verificationStep === 'selfie_captured' && <CheckCircle2 size={16} color="var(--color-success)" />}
@@ -1038,7 +1074,6 @@ export default function MeetingModePage() {
                 onChange={handleCaptureSelfie} 
                 style={{ display: 'none' }} 
               />
-              {/* Hidden canvas for capture */}
               <canvas ref={canvasRef} style={{ display: 'none' }} />
 
               {/* Live Camera View */}
@@ -1050,7 +1085,7 @@ export default function MeetingModePage() {
                       autoPlay 
                       playsInline 
                       muted 
-                      style={{ width: '100%', maxHeight: '300px', objectFit: 'cover', display: 'block', transform: 'scaleX(-1)' }} 
+                      style={{ width: '100%', maxHeight: '280px', objectFit: 'cover', display: 'block', transform: 'scaleX(-1)' }} 
                     />
                     {/* Top live HUD badge */}
                     <div style={{ position: 'absolute', top: 10, left: 10, right: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', pointerEvents: 'none' }}>
@@ -1065,7 +1100,7 @@ export default function MeetingModePage() {
                     {/* Bottom Geo & Real-time Clock HUD */}
                     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85), rgba(0,0,0,0.3))', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#34d399', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <span style={{ fontSize: '0.74rem', color: '#34d399', fontFamily: 'var(--font-mono)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <MapPin size={12} /> {selfieGeoData?.address || 'Dwarka Sector 12, New Delhi (±3.8m)'}
                         </span>
                         <span style={{ fontSize: '0.72rem', color: '#cbd5e1', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
@@ -1081,9 +1116,9 @@ export default function MeetingModePage() {
                     <button 
                       className="btn btn-primary" 
                       onClick={captureFromCamera} 
-                      style={{ flex: 1, padding: '12px', gap: '8px', justifyContent: 'center', fontSize: '0.9rem', background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981' }}
+                      style={{ flex: 1, padding: '12px', gap: '8px', justifyContent: 'center', fontSize: '0.88rem', background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981' }}
                     >
-                      <Camera size={18} /> 📸 Capture Geotagged Selfie
+                      <Camera size={18} /> Capture Geotagged Selfie
                     </button>
                     <button
                       className="btn btn-secondary"
@@ -1100,7 +1135,7 @@ export default function MeetingModePage() {
               {/* Camera not open yet — manual trigger */}
               {verificationStep === 'otp_verified' && !isCameraOpen && (
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-primary" onClick={openSelfieCamera} style={{ flex: 1, padding: '10px 16px', fontSize: '0.85rem', gap: '6px' }}>
+                  <button className="btn btn-primary" onClick={openSelfieCamera} style={{ flex: 1, padding: '10px 16px', fontSize: '0.85rem', gap: '6px', justifyContent: 'center' }}>
                     <Camera size={14} /> Open Camera for Selfie
                   </button>
                   <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} style={{ padding: '10px 14px', fontSize: '0.85rem' }}>
@@ -1111,7 +1146,7 @@ export default function MeetingModePage() {
 
               {verificationStep === 'selfie_captured' && (
                 <div style={{ display: 'flex', gap: '14px', alignItems: 'center' }}>
-                  {selfieUrl && <img src={selfieUrl} alt="Selfie" style={{ width: '72px', height: '72px', borderRadius: '8px', objectFit: 'cover', border: '2px solid var(--color-success)' }} />}
+                  {selfieUrl && <img src={selfieUrl} alt="Selfie" style={{ width: '68px', height: '68px', borderRadius: '8px', objectFit: 'cover', border: '2px solid var(--color-success)' }} />}
                   <div style={{ flex: 1 }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--color-success)', marginBottom: '3px' }}>✓ Presence Verified & Geo-Stamped</div>
                     {selfieGeoData && (
@@ -1134,7 +1169,7 @@ export default function MeetingModePage() {
 
           <button 
             className="btn btn-primary" 
-            style={{ width: '100%', justifyContent: 'center', padding: '14px', gap: '8px', fontSize: '0.95rem', opacity: verificationStep !== 'selfie_captured' ? 0.5 : 1 }}
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', gap: '8px', fontSize: '0.95rem', fontWeight: 700, opacity: verificationStep !== 'selfie_captured' ? 0.5 : 1 }}
             onClick={handleStartMeeting}
             disabled={isSubmitting || verificationStep !== 'selfie_captured'}
           >
@@ -1147,15 +1182,15 @@ export default function MeetingModePage() {
       {/* Phase 2: Live Meeting & Audio Recording (Streamlined, High-End Console) */}
       {phase === 'meeting' && (
         <div className="card" style={{
-          padding: '40px 32px',
+          padding: '36px 24px',
           textAlign: 'center',
           borderRadius: 'var(--radius-lg)',
-          background: 'linear-gradient(180deg, rgba(30, 27, 75, 0.4) 0%, rgba(13, 20, 36, 0.95) 100%)',
-          border: '1px solid rgba(99, 102, 241, 0.3)',
-          boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5)'
+          background: 'linear-gradient(180deg, rgba(30, 27, 75, 0.45) 0%, rgba(13, 20, 36, 0.98) 100%)',
+          border: '1px solid rgba(99, 102, 241, 0.35)',
+          boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.6)'
         }}>
           {/* Active Live Pulse Badge */}
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '6px 14px', borderRadius: 'var(--radius-full)', marginBottom: '24px' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '6px 14px', borderRadius: 'var(--radius-full)', marginBottom: '20px' }}>
             <span style={{
               width: 9, height: 9, borderRadius: '50%',
               background: '#ef4444', boxShadow: '0 0 10px #ef4444',
@@ -1168,7 +1203,7 @@ export default function MeetingModePage() {
 
           {/* Big Clock */}
           <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: '4.25rem', fontWeight: 800,
+            fontFamily: 'var(--font-mono)', fontSize: '3.75rem', fontWeight: 800,
             color: '#fff', lineHeight: 1, letterSpacing: '-0.02em', marginBottom: '12px'
           }}>
             {formatTime(elapsed)}
@@ -1176,9 +1211,9 @@ export default function MeetingModePage() {
 
           {/* Metadata chip */}
           <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '10px',
+            display: 'inline-flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'center',
             background: 'rgba(255, 255, 255, 0.04)', padding: '6px 16px', borderRadius: 'var(--radius-md)',
-            color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: '32px'
+            color: 'var(--color-text-secondary)', fontSize: '0.85rem', marginBottom: '28px'
           }}>
             <Building size={14} color="var(--color-brand-light)" />
             <strong style={{ color: '#fff' }}>{businessName}</strong>
@@ -1189,7 +1224,7 @@ export default function MeetingModePage() {
           {/* Real Audio Waveform / Spectrum */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
-            height: 56, marginBottom: '32px', padding: '0 20px'
+            height: 52, marginBottom: '28px', padding: '0 16px'
           }}>
             {[35, 70, 45, 90, 60, 100, 80, 50, 95, 65, 85, 40, 75, 55, 95, 30].map((h, i) => {
               const dynamicHeight = Math.max(10, Math.round((h * (audioLevel || 45)) / 75));
@@ -1208,34 +1243,34 @@ export default function MeetingModePage() {
             })}
           </div>
 
-          {/* Clean Enterprise Badges (No Deepgram branding!) */}
-          <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '32px' }}>
+          {/* Enterprise Badges */}
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '28px' }}>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               background: 'rgba(255,255,255,0.04)', border: '1px solid var(--color-border)',
-              padding: '6px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', color: 'var(--color-text-secondary)'
+              padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.72rem', color: 'var(--color-text-secondary)'
             }}>
-              <Radio size={13} color="var(--color-brand-light)" /> Live Audio Capture
+              <Radio size={12} color="var(--color-brand-light)" /> Live Audio Capture
             </span>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               background: 'rgba(255,255,255,0.04)', border: '1px solid var(--color-border)',
-              padding: '6px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', color: 'var(--color-text-secondary)'
+              padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.72rem', color: 'var(--color-text-secondary)'
             }}>
-              <Sparkles size={13} color="var(--color-success)" /> AI Speech Diarization
+              <Sparkles size={12} color="var(--color-success)" /> AI Speech Diarization
             </span>
             <span style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               background: 'rgba(255,255,255,0.04)', border: '1px solid var(--color-border)',
-              padding: '6px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.75rem', color: 'var(--color-text-secondary)'
+              padding: '5px 12px', borderRadius: 'var(--radius-full)', fontSize: '0.72rem', color: 'var(--color-text-secondary)'
             }}>
-              <Shield size={13} color="var(--color-brand-light)" /> Encrypted Audio Stream
+              <Shield size={12} color="var(--color-brand-light)" /> Encrypted Audio Stream
             </span>
           </div>
 
           <button
             className="btn btn-danger"
-            style={{ width: '100%', justifyContent: 'center', padding: '15px', gap: '8px', fontSize: '0.95rem', fontWeight: 700 }}
+            style={{ width: '100%', justifyContent: 'center', padding: '14px', gap: '8px', fontSize: '0.95rem', fontWeight: 700 }}
             onClick={handleEndMeeting}
             disabled={isProcessingAudio}
           >
@@ -1246,12 +1281,13 @@ export default function MeetingModePage() {
 
       {/* Phase 3: Complete & Review */}
       {phase === 'complete' && (
-        <div className="card" style={{ textAlign: 'center', padding: '36px 28px', borderRadius: 'var(--radius-lg)' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '32px 24px', borderRadius: 'var(--radius-lg)', background: 'linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(13, 20, 36, 0.95) 100%)', border: '1px solid var(--color-border)' }}>
           <div style={{
             width: 56, height: 56, borderRadius: '50%',
             background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px'
+            margin: '0 auto 16px',
+            boxShadow: '0 0 24px rgba(16, 185, 129, 0.25)'
           }}>
             <CheckCircle2 size={30} color="var(--color-success)" />
           </div>
@@ -1263,34 +1299,64 @@ export default function MeetingModePage() {
           {/* Dynamic Evaluation Score Banner */}
           {analysisResult && (
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '14px 18px',
+              padding: '16px 18px',
               borderRadius: 'var(--radius-md)',
               background: analysisResult.qualityScore >= 70 ? 'rgba(16, 185, 129, 0.08)' : analysisResult.qualityScore >= 40 ? 'rgba(245, 158, 11, 0.08)' : 'rgba(239, 68, 68, 0.08)',
               border: `1px solid ${analysisResult.qualityScore >= 70 ? 'rgba(16, 185, 129, 0.3)' : analysisResult.qualityScore >= 40 ? 'rgba(245, 158, 11, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
-              marginBottom: '20px',
+              marginBottom: '16px',
               textAlign: 'left'
             }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                  <Sparkles size={14} color={analysisResult.qualityScore >= 70 ? 'var(--color-success)' : analysisResult.qualityScore >= 40 ? 'var(--color-warning)' : 'var(--color-error)'} />
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: analysisResult.qualityScore >= 70 ? 'var(--color-success)' : analysisResult.qualityScore >= 40 ? 'var(--color-warning)' : 'var(--color-error)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Sparkles size={15} color={analysisResult.qualityScore >= 70 ? 'var(--color-success)' : analysisResult.qualityScore >= 40 ? 'var(--color-warning)' : 'var(--color-error)'} />
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', color: analysisResult.qualityScore >= 70 ? 'var(--color-success)' : analysisResult.qualityScore >= 40 ? 'var(--color-warning)' : 'var(--color-error)' }}>
                     AI Evaluated Score: {analysisResult.qualityScore}/100 ({analysisResult.intentLevel} INTENT)
                   </span>
                 </div>
-                <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-text-secondary)' }}>
-                  {analysisResult.summary}
-                </p>
               </div>
+              <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                {analysisResult.summary}
+              </p>
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+          {/* Lead Tapped Interactive Toggle Card */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '14px 18px',
+            borderRadius: 'var(--radius-md)',
+            background: isLeadTapped ? 'rgba(251, 191, 36, 0.12)' : 'rgba(255, 255, 255, 0.02)',
+            border: isLeadTapped ? '1px solid rgba(251, 191, 36, 0.4)' : '1px solid var(--color-border-subtle)',
+            marginBottom: '20px',
+            textAlign: 'left',
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}>
+            <div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: isLeadTapped ? '#fbbf24' : '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Zap size={15} fill={isLeadTapped ? '#fbbf24' : 'none'} color="#fbbf24" />
+                Lead Status: {isLeadTapped ? 'Tapped (+1 Live Counter)' : 'Not Marked as Tapped'}
+              </div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                {isLeadTapped ? 'This lead increments the agent’s Tapped counter (+1) across CEO dashboards.' : 'Marking this lead as tapped adds +1 to Agent Nilesh’s conversion report.'}
+              </div>
+            </div>
+
+            <button
+              className={`btn ${isLeadTapped ? 'btn-success' : 'btn-secondary'}`}
+              onClick={handleToggleLeadTapped}
+              style={{ fontSize: '0.8rem', padding: '8px 14px', fontWeight: 700 }}
+            >
+              {isLeadTapped ? '✓ Lead Tapped (+1)' : '⚡ Mark as Tapped (+1)'}
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
             <button 
               className="btn btn-secondary" 
-              style={{ flex: 1, justifyContent: 'center', gap: '8px', padding: '12px' }}
+              style={{ flex: 1, minWidth: '130px', justifyContent: 'center', gap: '8px', padding: '12px' }}
               onClick={() => setIsNotesModalOpen(true)}
             >
               <Edit3 size={15} />
@@ -1298,7 +1364,7 @@ export default function MeetingModePage() {
             </button>
             <button 
               className="btn btn-primary" 
-              style={{ flex: 1.5, justifyContent: 'center', gap: '8px', padding: '12px', fontWeight: 700 }}
+              style={{ flex: 1.5, minWidth: '200px', justifyContent: 'center', gap: '8px', padding: '12px', fontWeight: 700 }}
               onClick={() => navigate('/meetings/m1/report')}
             >
               Open Full AI Report & Submit to CEO <ChevronRight size={15} />
@@ -1309,24 +1375,12 @@ export default function MeetingModePage() {
 
       {/* Add / Edit Notes Modal */}
       {isNotesModalOpen && (
-        <div style={{
-          position: 'fixed', inset: 0,
-          background: 'rgba(9, 14, 26, 0.85)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 100, padding: '16px'
-        }}>
-          <div className="card" style={{
-            width: '100%', maxWidth: '520px',
-            background: 'var(--color-bg-surface)',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-lg)',
-            padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px'
-          }}>
+        <div className="modal-backdrop" onClick={(e) => { if (e.target === e.currentTarget) setIsNotesModalOpen(false); }}>
+          <div className="modal-dialog">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Edit3 size={18} color="var(--color-brand-light)" />
-                <h3 style={{ fontSize: '1.2rem', margin: 0 }}>Add Field Notes</h3>
+                <h3 style={{ fontSize: '1.2rem', margin: 0, fontWeight: 700 }}>Add Field Notes</h3>
               </div>
               <button 
                 onClick={() => setIsNotesModalOpen(false)}
@@ -1379,17 +1433,11 @@ export default function MeetingModePage() {
                 onChange={(e) => setMeetingNotes(e.target.value)}
                 placeholder="Enter client observations or pitch details..."
                 rows={4}
+                className="input"
                 style={{
                   width: '100%',
                   padding: '12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-bg-elevated)',
-                  color: 'white',
-                  fontFamily: 'inherit',
-                  fontSize: '0.875rem',
                   lineHeight: 1.5,
-                  outline: 'none',
                   resize: 'vertical'
                 }}
               />
@@ -1405,15 +1453,10 @@ export default function MeetingModePage() {
                 value={nextAction}
                 onChange={(e) => setNextAction(e.target.value)}
                 placeholder="E.g., Send quotation on WhatsApp by Tuesday"
+                className="input"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--color-border)',
-                  background: 'var(--color-bg-elevated)',
-                  color: 'white',
-                  fontSize: '0.875rem',
-                  outline: 'none'
                 }}
               />
             </div>
