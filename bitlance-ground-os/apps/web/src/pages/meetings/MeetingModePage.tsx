@@ -1156,21 +1156,13 @@ export default function MeetingModePage() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ display: 'flex' }}>
                     <button 
                       className="btn btn-primary" 
                       onClick={captureFromCamera} 
-                      style={{ flex: 1, padding: '12px', gap: '8px', justifyContent: 'center', fontSize: '0.88rem', background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981' }}
+                      style={{ width: '100%', padding: '12px', gap: '8px', justifyContent: 'center', fontSize: '0.9rem', fontWeight: 700, background: 'linear-gradient(135deg, #10b981, #059669)', borderColor: '#10b981', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)' }}
                     >
-                      <Camera size={18} /> Capture Geotagged Selfie
-                    </button>
-                    <button
-                      className="btn btn-secondary"
-                      onClick={() => fileInputRef.current?.click()}
-                      title="Upload from device instead"
-                      style={{ padding: '0 14px', fontSize: '0.8rem' }}
-                    >
-                      Upload File
+                      <Camera size={18} /> Click & Capture Geotagged Selfie
                     </button>
                   </div>
                 </div>
@@ -1178,12 +1170,9 @@ export default function MeetingModePage() {
               
               {/* Camera not open yet — manual trigger */}
               {verificationStep === 'otp_verified' && !isCameraOpen && (
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button className="btn btn-primary" onClick={openSelfieCamera} style={{ flex: 1, padding: '10px 16px', fontSize: '0.85rem', gap: '6px', justifyContent: 'center' }}>
-                    <Camera size={14} /> Open Camera for Selfie
-                  </button>
-                  <button className="btn btn-secondary" onClick={() => fileInputRef.current?.click()} style={{ padding: '10px 14px', fontSize: '0.85rem' }}>
-                    Upload Photo
+                <div style={{ display: 'flex' }}>
+                  <button className="btn btn-primary" onClick={openSelfieCamera} style={{ width: '100%', padding: '11px 16px', fontSize: '0.88rem', fontWeight: 700, gap: '6px', justifyContent: 'center' }}>
+                    <Camera size={16} /> Open Camera for Selfie
                   </button>
                 </div>
               )}
