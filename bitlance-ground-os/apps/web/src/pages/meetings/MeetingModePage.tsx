@@ -1353,21 +1353,20 @@ export default function MeetingModePage() {
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+          <div className="meeting-action-row">
             <button 
-              className="btn btn-secondary" 
-              style={{ flex: 1, minWidth: '130px', justifyContent: 'center', gap: '8px', padding: '12px' }}
+              className="meeting-action-btn-secondary" 
               onClick={() => setIsNotesModalOpen(true)}
             >
-              <Edit3 size={15} />
-              {notesSaved && meetingNotes ? 'Edit Notes' : 'Add Notes'}
+              <Edit3 size={16} />
+              <span>{notesSaved && meetingNotes ? 'Edit Notes' : 'Add Notes'}</span>
             </button>
             <button 
-              className="btn btn-primary" 
-              style={{ flex: 1.5, minWidth: '200px', justifyContent: 'center', gap: '8px', padding: '12px', fontWeight: 700 }}
+              className="meeting-action-btn-primary" 
               onClick={() => navigate('/meetings/m1/report')}
             >
-              Open Full AI Report & Submit to CEO <ChevronRight size={15} />
+              <span>Open AI Report & Submit to CEO</span>
+              <ChevronRight size={16} />
             </button>
           </div>
         </div>

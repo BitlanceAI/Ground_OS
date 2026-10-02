@@ -913,4 +913,70 @@ code { font-family: var(--font-mono); font-size: 0.85em; }
   }
 }
 
+/* Responsive Action Buttons */
+.meeting-action-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.meeting-action-btn-primary {
+  flex: 1.8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 20px;
+  font-size: 0.92rem;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  background: var(--color-brand);
+  color: #fff;
+  border: 1px solid var(--color-brand-light);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.meeting-action-btn-primary:hover {
+  background: var(--color-brand-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+}
+
+.meeting-action-btn-secondary {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.meeting-action-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-border-bright);
+}
+
+@media (max-width: 640px) {
+  .meeting-action-row {
+    flex-direction: column !important;
+  }
+  .meeting-action-btn-primary,
+  .meeting-action-btn-secondary {
+    width: 100% !important;
+    flex: none !important;
+  }
+}
+
 

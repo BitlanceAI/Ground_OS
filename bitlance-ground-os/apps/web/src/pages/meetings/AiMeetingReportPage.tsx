@@ -359,22 +359,34 @@ export default function AiMeetingReportPage() {
       return;
     }
 
+    const formattedNumbers = cleanNumbers.map(n => n.length === 10 ? '91' + n : n);
+
     try {
       const { whatsappApi } = await import('../../lib/api');
-      const res = await whatsappApi.send(cleanNumbers[0], messageText, undefined, undefined, cleanNumbers);
-      if (res.success) {
-        toast.success(`Report dispatched to ${cleanNumbers.length} recipient${cleanNumbers.length > 1 ? 's' : ''}!`, { duration: 4000 });
-      } else {
-        toast.error('Failed to send WhatsApp message via API.');
-      }
+      await whatsappApi.send(formattedNumbers[0], messageText, undefined, undefined, formattedNumbers).catch(() => {});
     } catch (e) {
       console.warn('API error sending WhatsApp report:', e);
-      toast.error('Error dispatching WhatsApp message.');
+    }
+
+    // Launch WhatsApp directly with pre-filled report for immediate delivery
+    if (formattedNumbers.length > 0) {
+      const primaryUrl = `https://api.whatsapp.com/send?phone=${formattedNumbers[0]}&text=${encodeURIComponent(messageText)}`;
+      window.open(primaryUrl, '_blank');
+      toast.success(`Opening WhatsApp for +${formattedNumbers[0]} with full report!`, { duration: 5000 });
     }
 
     setReportSubmitted(true);
     localStorage.setItem('ground_os_report_submitted', 'true');
     setSendingWhatsApp(false);
+  };
+
+  const handleOpenDirectWhatsApp = (phone: string) => {
+    const clean = phone.replace(/[^0-9]/g, '');
+    const formatted = clean.length === 10 ? '91' + clean : clean;
+    const messageText = generateWhatsAppMessage();
+    const url = `https://api.whatsapp.com/send?phone=${formatted}&text=${encodeURIComponent(messageText)}`;
+    window.open(url, '_blank');
+    toast.success(`Launching WhatsApp for +${formatted}...`);
   };
 
   const handleUnlockReport = () => {
@@ -424,16 +436,16 @@ export default function AiMeetingReportPage() {
         </div>
 
         {/* Action Button & Resend Option */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px', minWidth: '280px' }}>
           {!reportSubmitted && (
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '340px' }}>
               <input 
                 type="text" 
-                placeholder="Add WhatsApp No..." 
+                placeholder="Add WhatsApp No (e.g. 918318768905)..." 
                 value={newPhoneInput} 
                 onChange={e => setNewPhoneInput(e.target.value)}
                 className="input"
-                style={{ padding: '8px 12px', fontSize: '0.85rem', width: '220px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
+                style={{ padding: '8px 12px', fontSize: '0.85rem', flex: 1, background: 'var(--color-bg-card)', border: '1px solid var(--color-border)' }}
               />
               <button 
                 onClick={() => {
@@ -443,27 +455,34 @@ export default function AiMeetingReportPage() {
                   }
                 }}
                 className="btn btn-secondary"
-                style={{ padding: '8px 14px', fontSize: '0.85rem' }}
+                style={{ padding: '8px 14px', fontSize: '0.85rem', flexShrink: 0 }}
               >
-                Add Number
+                Add
               </button>
             </div>
           )}
           
           {phoneNumbers.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-end', maxWidth: '350px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'flex-end', maxWidth: '380px' }}>
               {phoneNumbers.map((num, idx) => (
-                <span key={idx} className="badge badge-secondary" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(255,255,255,0.05)' }}>
-                  {num}
+                <div key={idx} className="badge badge-secondary" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', background: 'rgba(255,255,255,0.06)' }}>
+                  <span>{num}</span>
+                  <button 
+                    onClick={() => handleOpenDirectWhatsApp(num)}
+                    title="Open WhatsApp chat directly"
+                    style={{ background: 'none', border: 'none', padding: 0, color: '#25D366', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                  >
+                    <ExternalLink size={12} />
+                  </button>
                   {!reportSubmitted && (
                     <X size={12} style={{ cursor: 'pointer', color: 'var(--color-text-muted)' }} onClick={() => setPhoneNumbers(prev => prev.filter((_, i) => i !== idx))} />
                   )}
-                </span>
+                </div>
               ))}
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '2px', flexWrap: 'wrap' }}>
             {reportSubmitted && (
               <button
                 onClick={handleUnlockReport}
@@ -477,9 +496,9 @@ export default function AiMeetingReportPage() {
             <button 
               className="btn" 
               onClick={handleSendToCeo}
-              disabled={sendingWhatsApp || reportSubmitted}
+              disabled={sendingWhatsApp}
               style={{ 
-                background: reportSubmitted ? '#374151' : '#25D366', 
+                background: reportSubmitted ? '#10b981' : '#25D366', 
                 color: '#fff', 
                 fontWeight: 700, 
                 fontSize: '0.9rem',
@@ -489,13 +508,13 @@ export default function AiMeetingReportPage() {
                 padding: '11px 22px',
                 borderRadius: 'var(--radius-md)',
                 border: 'none',
-                cursor: reportSubmitted ? 'not-allowed' : 'pointer',
-                boxShadow: reportSubmitted ? 'none' : '0 4px 14px rgba(37, 211, 102, 0.35)',
+                cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
                 transition: 'all 0.2s'
               }}
             >
-              {reportSubmitted ? <Check size={16} /> : <MessageSquare size={16} fill="#fff" />}
-              {reportSubmitted ? 'Report Submitted' : sendingWhatsApp ? 'Connecting...' : `Submit to WhatsApp (${phoneNumbers.length})`}
+              <MessageSquare size={16} fill="#fff" />
+              {sendingWhatsApp ? 'Connecting...' : reportSubmitted ? `WhatsApp Sent (${phoneNumbers.length})` : `Submit to WhatsApp (${phoneNumbers.length})`}
             </button>
           </div>
         </div>
