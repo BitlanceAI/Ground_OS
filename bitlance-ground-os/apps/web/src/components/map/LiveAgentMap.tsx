@@ -139,10 +139,13 @@ export default function LiveAgentMap({
       const map = L.map(mapRef.current, {
         center: initialCenter,
         zoom: 15,
-        zoomControl: true,
+        zoomControl: false,
         attributionControl: false,
         scrollWheelZoom: false,
       });
+
+      // Position Zoom Controls clearly at bottom-left so they are never covered by top menus
+      L.control.zoom({ position: 'bottomleft' }).addTo(map);
 
       const { url, options } = getTileConfig(activeTheme, mapsApiKey);
       const tileLayer = L.tileLayer(url, options).addTo(map);
@@ -436,15 +439,15 @@ export default function LiveAgentMap({
       {/* Top Controls Overlay Bar: Agent Shift Dropdown + Recenter + Layers */}
       <div style={{
         position: 'absolute',
-        top: 12,
-        left: 12,
-        right: 12,
+        top: 10,
+        left: 10,
+        right: 10,
         zIndex: 1000,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
-        gap: '8px',
+        gap: '6px',
         pointerEvents: 'none',
       }}>
         {/* Left: Agent Shift Dropdown Selector */}
@@ -452,16 +455,16 @@ export default function LiveAgentMap({
           pointerEvents: 'auto',
           display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          background: 'rgba(9, 14, 26, 0.9)',
+          gap: '6px',
+          background: 'rgba(9, 14, 26, 0.92)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(99, 102, 241, 0.35)',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
-          borderRadius: '8px',
-          padding: '4px 10px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
+          borderRadius: '7px',
+          padding: '3px 8px',
         }}>
-          <Users size={14} color="var(--color-brand-light)" />
-          <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>Live Agent:</span>
+          <Users size={12} color="var(--color-brand-light)" />
+          <span style={{ fontSize: '10.5px', fontWeight: 700, color: '#94a3b8' }}>Live Agent:</span>
           
           <select
             value={selectedAgentId}
@@ -470,13 +473,13 @@ export default function LiveAgentMap({
               background: 'rgba(255, 255, 255, 0.06)',
               color: '#fff',
               border: '1px solid rgba(255, 255, 255, 0.12)',
-              borderRadius: '6px',
-              padding: '4px 8px',
-              fontSize: '11px',
+              borderRadius: '5px',
+              padding: '3px 6px',
+              fontSize: '10.5px',
               fontWeight: 700,
               cursor: 'pointer',
               outline: 'none',
-              maxWidth: '220px',
+              maxWidth: '190px',
             }}
           >
             <option value="all" style={{ background: '#0f172a', color: '#fff' }}>
@@ -496,19 +499,19 @@ export default function LiveAgentMap({
               background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
               border: 'none',
               color: '#fff',
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontSize: '11px',
+              borderRadius: '5px',
+              padding: '3px 8px',
+              fontSize: '10.5px',
               fontWeight: 700,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: '5px',
-              boxShadow: '0 0 10px rgba(99, 102, 241, 0.5)',
+              gap: '4px',
+              boxShadow: '0 0 10px rgba(99, 102, 241, 0.4)',
             }}
             title="Recenter view on live GPS agent"
           >
-            <Navigation size={11} fill="#fff" />
+            <Navigation size={10} fill="#fff" />
             <span>Shift Location</span>
           </button>
         </div>
@@ -518,17 +521,17 @@ export default function LiveAgentMap({
           pointerEvents: 'auto',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
-          background: 'rgba(9, 14, 26, 0.9)',
+          gap: '3px',
+          background: 'rgba(9, 14, 26, 0.92)',
           backdropFilter: 'blur(10px)',
           border: '1px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.5)',
-          borderRadius: '8px',
-          padding: '3px 5px',
+          boxShadow: '0 4px 16px rgba(0, 0, 0, 0.6)',
+          borderRadius: '7px',
+          padding: '2px 4px',
         }}>
           {isGoogleKey && (
-            <span style={{ fontSize: '10px', color: '#94a3b8', padding: '0 6px', fontWeight: 600, borderRight: '1px solid rgba(255,255,255,0.1)' }}>
-              Google Maps
+            <span style={{ fontSize: '9.5px', color: '#94a3b8', padding: '0 4px', fontWeight: 600, borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+              Google
             </span>
           )}
           <button
@@ -564,10 +567,10 @@ export default function LiveAgentMap({
           background: transparent;
           border: none;
           color: #94a3b8;
-          font-size: 11px;
+          font-size: 10.5px;
           font-weight: 600;
-          padding: 4px 8px;
-          border-radius: 6px;
+          padding: 3px 6px;
+          border-radius: 5px;
           cursor: pointer;
           transition: all 0.15s ease;
         }
@@ -579,6 +582,39 @@ export default function LiveAgentMap({
           color: #fff;
           background: var(--color-brand, #6366f1);
           font-weight: 700;
+        }
+        /* Custom Leaflet Zoom Controls: Positioned clearly at bottom-left without overlap */
+        .leaflet-bottom.leaflet-left {
+          bottom: 12px !important;
+          left: 12px !important;
+          z-index: 1000 !important;
+        }
+        .leaflet-control-zoom {
+          border: 1px solid rgba(99, 102, 241, 0.3) !important;
+          background: rgba(15, 23, 42, 0.9) !important;
+          backdrop-filter: blur(8px) !important;
+          border-radius: 8px !important;
+          overflow: hidden !important;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+          margin: 0 !important;
+        }
+        .leaflet-control-zoom a {
+          background: rgba(15, 23, 42, 0.9) !important;
+          color: #f8fafc !important;
+          width: 28px !important;
+          height: 28px !important;
+          line-height: 28px !important;
+          font-size: 15px !important;
+          font-weight: 700 !important;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+          transition: all 0.15s ease !important;
+        }
+        .leaflet-control-zoom a:last-child {
+          border-bottom: none !important;
+        }
+        .leaflet-control-zoom a:hover {
+          background: #6366f1 !important;
+          color: #fff !important;
         }
       `}</style>
     </div>
