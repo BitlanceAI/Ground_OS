@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding Bitlance Ground OS users...');
+  console.log('🌱 Seeding Bitlance Ground OS users & field agents...');
 
   // ── Organization ──────────────────────────────────────────
   const org = await prisma.organization.upsert({
@@ -29,11 +29,15 @@ async function main() {
 
   // ── Users ─────────────────────────────────────────────────
   const adminPwHash = await bcrypt.hash('admin@123', 12);
+  const nileshPwHash = await bcrypt.hash('nilesh@123', 12);
   const agentPwHash = await bcrypt.hash('agent@123', 12);
 
-  const adminUser = await prisma.user.upsert({
+  // CEO / Admin
+  await prisma.user.upsert({
     where: { email: 'bitlanceai@gmail.com' },
-    update: {},
+    update: {
+      passwordHash: adminPwHash,
+    },
     create: {
       organizationId: org.id,
       email: 'bitlanceai@gmail.com',
@@ -44,9 +48,50 @@ async function main() {
     },
   });
 
+  // Agent Nilesh
+  const nileshUser = await prisma.user.upsert({
+    where: { email: 'agentnilesh@gmail.com' },
+    update: {
+      passwordHash: nileshPwHash,
+      firstName: 'Nilesh',
+      lastName: 'Somnawane',
+    },
+    create: {
+      organizationId: org.id,
+      email: 'agentnilesh@gmail.com',
+      passwordHash: nileshPwHash,
+      firstName: 'Nilesh',
+      lastName: 'Somnawane',
+      role: 'AGENT',
+    },
+  });
+
+  // Agent Nilesh Profile
+  await prisma.agent.upsert({
+    where: { userId: nileshUser.id },
+    update: {
+      employeeCode: 'AG001',
+      phone: '+91 74981 62774',
+      territory: 'Delhi NCR (Dwarka Hub)',
+    },
+    create: {
+      organizationId: org.id,
+      userId: nileshUser.id,
+      employeeCode: 'AG001',
+      phone: '+91 74981 62774',
+      status: 'ONLINE',
+      currentLatitude: 28.5921,
+      currentLongitude: 77.0460,
+      territory: 'Delhi NCR (Dwarka Hub)',
+    },
+  });
+
+  // Generic Agent fallback
   const agentUser = await prisma.user.upsert({
     where: { email: 'agent@gmail.com' },
-    update: {},
+    update: {
+      passwordHash: agentPwHash,
+    },
     create: {
       organizationId: org.id,
       email: 'agent@gmail.com',
@@ -57,29 +102,25 @@ async function main() {
     },
   });
 
-  console.log('✅ Users: Admin, Agent');
-
-  // ── Agents ────────────────────────────────────────────────
-  const agentProfile = await prisma.agent.upsert({
+  await prisma.agent.upsert({
     where: { userId: agentUser.id },
     update: {},
     create: {
       organizationId: org.id,
       userId: agentUser.id,
-      employeeCode: 'AG001',
+      employeeCode: 'AG002',
       phone: '+91 98765 43210',
       status: 'ONLINE',
-      currentLatitude: 19.076,
-      currentLongitude: 72.8777,
-      territory: 'Andheri West',
+      currentLatitude: 28.5921,
+      currentLongitude: 77.0460,
+      territory: 'Delhi NCR',
     },
   });
-  console.log('✅ Agent Profile Created');
 
-  console.log('\n🎉 Bitlance Ground OS seed complete!');
-  console.log('\n📋 Credentials:');
-  console.log('   Admin: bitlanceai@gmail.com / admin@123');
-  console.log('   Agent: agent@gmail.com / agent@123');
+  console.log('✅ Users & Profiles Seeded:');
+  console.log('   🛡️ Admin:  bitlanceai@gmail.com / admin@123');
+  console.log('   👔 Nilesh: agentnilesh@gmail.com / nilesh@123');
+  console.log('   👔 Agent:  agent@gmail.com / agent@123');
 }
 
 main()
