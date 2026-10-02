@@ -72,7 +72,9 @@ async function main() {
     update: {
       employeeCode: 'AG001',
       phone: '+91 74981 62774',
-      territory: 'Delhi NCR (Dwarka Hub)',
+      territory: 'Pune',
+      currentLatitude: 18.5204,
+      currentLongitude: 73.8567,
     },
     create: {
       organizationId: org.id,
@@ -80,9 +82,9 @@ async function main() {
       employeeCode: 'AG001',
       phone: '+91 74981 62774',
       status: 'ONLINE',
-      currentLatitude: 28.5921,
-      currentLongitude: 77.0460,
-      territory: 'Delhi NCR (Dwarka Hub)',
+      currentLatitude: 18.5204,
+      currentLongitude: 73.8567,
+      territory: 'Pune',
     },
   });
 

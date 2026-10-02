@@ -181,7 +181,7 @@ export default function AgentDetailPage() {
     '+91 98765 43210';
   const currentAgentTerritory = agentData?.territory || 
     (agentId === 'me' && user?.territory ? user.territory : null) || 
-    'Delhi NCR (Dwarka Hub)';
+    'Pune (Maharashtra Hub)';
 
   const initials = currentAgentName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'AG';
 

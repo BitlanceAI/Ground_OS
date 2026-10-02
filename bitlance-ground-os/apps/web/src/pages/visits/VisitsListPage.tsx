@@ -94,15 +94,15 @@ export default function VisitsListPage() {
           }
         },
         (err) => {
-          // Default agent location in Delhi NCR
-          const defaultDelhi = {
-            lat: 28.5921,
-            lng: 77.0460,
-            address: 'Dwarka, New Delhi',
+          // Default agent location in Pune
+          const defaultPune = {
+            lat: 18.5204,
+            lng: 73.8567,
+            address: 'FC Road, Pune, Maharashtra',
             timestamp: new Date().toISOString(),
           };
-          localStorage.setItem(`ground_os_agent_location_${agentKey}`, JSON.stringify(defaultDelhi));
-          localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultDelhi));
+          localStorage.setItem(`ground_os_agent_location_${agentKey}`, JSON.stringify(defaultPune));
+          localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultPune));
         },
         { enableHighAccuracy: true, timeout: 5000 }
       );
@@ -284,7 +284,7 @@ export default function VisitsListPage() {
             My Visits Today
           </h1>
           <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.9375rem', margin: 0 }}>
-            Agent: <strong style={{ color: '#fff' }}>Nilesh Somnawane</strong> · Territory: <strong style={{ color: '#fff' }}>Delhi NCR</strong> · <strong style={{ color: 'var(--color-brand-light)' }}>{remainingCount} active visits</strong> pending.
+            Agent: <strong style={{ color: '#fff' }}>Nilesh Somnawane</strong> · Territory: <strong style={{ color: '#fff' }}>Pune</strong> · <strong style={{ color: 'var(--color-brand-light)' }}>{remainingCount} active visits</strong> pending.
           </p>
         </div>
 

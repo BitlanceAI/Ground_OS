@@ -85,7 +85,7 @@ export default function AgentsManagementPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newPhone, setNewPhone] = useState('');
-  const [newTerritory, setNewTerritory] = useState('Delhi NCR (Dwarka Hub)');
+  const [newTerritory, setNewTerritory] = useState('Pune (Maharashtra Hub)');
   const [newEmployeeCode, setNewEmployeeCode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -153,7 +153,7 @@ export default function AgentsManagementPage() {
 
   const handleOpenAddModal = () => {
     setNewFirstName(''); setNewLastName(''); setNewEmail(''); setNewPassword('');
-    setNewPhone('+91 '); setNewTerritory('Delhi NCR (Dwarka Hub)');
+    setNewPhone('+91 '); setNewTerritory('Pune (Maharashtra Hub)');
     setNewEmployeeCode(`AG00${agents.length + 1}`);
     setShowPassword(false); setManualCredentialsOverride(false);
     setShowAddModal(true);

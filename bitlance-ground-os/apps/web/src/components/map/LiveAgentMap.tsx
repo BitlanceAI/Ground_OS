@@ -127,7 +127,7 @@ export default function LiveAgentMap({
   const primaryAgent = agents.find(a => a.isLiveGPS) || agents[0];
   const initialCenter: [number, number] = primaryAgent && primaryAgent.lat && primaryAgent.lng
     ? [primaryAgent.lat, primaryAgent.lng]
-    : [28.5921, 77.0460];
+    : [18.5204, 73.8567];
 
   // Initialize Map
   useEffect(() => {
