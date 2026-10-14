@@ -36,6 +36,14 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   });
 
   if (!response.ok) {
+    if (response.status === 401 && !path.includes('/auth/login')) {
+      try {
+        localStorage.removeItem('auth-store');
+      } catch {}
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+    }
     const error = await response.json().catch(() => ({ message: response.statusText }));
     throw new Error(error.message || `API error ${response.status}`);
   }
