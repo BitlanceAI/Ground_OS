@@ -86,9 +86,13 @@ router.post('/send-otp', async (req: AuthenticatedRequest, res: Response) => {
     `• Secure Ground GPS Audit Verification`;
 
   try {
-    // Assuming the template name is 'verification_code' and takes one parameter (the OTP)
-    // Update the template name below if your Meta template is named differently
-    const result = await provider.sendTemplate(cleanPhone, 'ground_os', [generatedOtp]);
+    let result: { messageId: string };
+    try {
+      result = await provider.sendTemplate(cleanPhone, 'ground_os', [generatedOtp]);
+    } catch (tmplErr: any) {
+      console.warn(`[WhatsApp OTP] Template 'ground_os' failed (${tmplErr?.message}), trying direct message...`);
+      result = await provider.sendMessage(cleanPhone, otpMessage);
+    }
     res.json({
       success: true,
       delivered: true,
