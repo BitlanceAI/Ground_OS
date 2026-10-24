@@ -51,7 +51,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(requestId);
-app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }));
+app.use(morgan('combined', { stream: { write: (msg: string) => logger.info(msg.trim()) } }));
 
 // Webhook routes get raw body (before JSON parse)
 app.use('/webhooks/whatsapp', express.raw({ type: 'application/json' }), webhooksWhatsAppRouter);
@@ -61,7 +61,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Health Check ───────────────────────────────────────────
-app.get('/health', (_, res) => {
+app.get('/health', (_req: express.Request, res: express.Response) => {
   res.json({ status: 'ok', service: 'ground-os-api', timestamp: new Date().toISOString() });
 });
 
