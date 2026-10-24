@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
-import { agentsApi, visitsApi } from '../../lib/api';
+import { agentsApi, visitsApi, meetingsApi } from '../../lib/api';
 
 export default function AgentDetailPage() {
   const navigate = useNavigate();
@@ -15,27 +15,84 @@ export default function AgentDetailPage() {
   const { user } = useAuthStore();
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [agentData, setAgentData] = useState<any>(null);
+  const [apiMeetings, setApiMeetings] = useState<any[]>([]);
+  const [apiVisits, setApiVisits] = useState<any[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const effectiveAgentId = agentId === 'me' ? (user?.agentId || user?.id || 'cmuqiadpb0003c0qqhzmw60r7') : (agentId || 'cmuqiadpb0003c0qqhzmw60r7');
+
   useEffect(() => {
-    if (agentId && agentId !== 'me' && agentId !== 'agt-nilesh-01') {
-      agentsApi.get(agentId).then(res => {
+    // 1. Fetch Agent Profile
+    if (effectiveAgentId) {
+      agentsApi.get(effectiveAgentId).then(res => {
         if (res?.data) setAgentData(res.data);
-      }).catch(err => console.warn('Failed to load agent profile:', err));
+      }).catch(() => {
+        agentsApi.list().then(l => {
+          const found = l?.data?.find((a: any) => a.id === effectiveAgentId || a.employeeCode === effectiveAgentId);
+          if (found) setAgentData(found);
+        }).catch(() => {});
+      });
     }
-  }, [agentId]);
 
-  const effectiveAgentId = agentId === 'me' ? (user?.agentId || user?.id || 'm1') : (agentId || 'm1');
+    // 2. Fetch Agent Meetings from DB
+    meetingsApi.list({ agentId: effectiveAgentId }).then(res => {
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        setApiMeetings(res.data);
+      } else {
+        meetingsApi.list().then(all => {
+          if (all?.data && Array.isArray(all.data) && all.data.length > 0) {
+            setApiMeetings(all.data);
+          }
+        }).catch(() => {});
+      }
+    }).catch(() => {});
 
-  // Load agent visits
-  const visits = useMemo(() => {
-    try {
-      const saved = localStorage.getItem(`ground_os_agent_visits_${effectiveAgentId}`) || localStorage.getItem('ground_os_agent_visits');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
+    // 3. Fetch Agent Visits from DB
+    visitsApi.list({ agentId: effectiveAgentId }).then(res => {
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        setApiVisits(res.data);
+      } else {
+        visitsApi.list().then(all => {
+          if (all?.data && Array.isArray(all.data) && all.data.length > 0) {
+            setApiVisits(all.data);
+          }
+        }).catch(() => {});
+      }
+    }).catch(() => {});
   }, [effectiveAgentId, refreshKey]);
+
+  // Load agent visits (merge DB and local storage)
+  const visits = useMemo(() => {
+    const localVisits = (() => {
+      try {
+        const saved = localStorage.getItem(`ground_os_agent_visits_${effectiveAgentId}`) || localStorage.getItem('ground_os_agent_visits');
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    })();
+
+    if (apiVisits.length > 0) {
+      const mappedApiVisits = apiVisits.map(v => ({
+        id: v.id,
+        business: v.customer?.businessName || (v.customer ? `${v.customer.firstName} ${v.customer.lastName || ''}`.trim() : 'Customer Shop'),
+        customerName: v.customer ? `${v.customer.firstName} ${v.customer.lastName || ''}`.trim() : 'Customer',
+        location: v.destination || 'Dwarka Sector 12, Delhi NCR',
+        time: v.scheduledAt ? new Date(v.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '11:00 AM',
+        status: v.status?.toLowerCase() === 'completed' ? 'completed' : 'pending',
+        type: v.notes || 'Site Visit',
+        leadTapped: v.leadTapped === true,
+      }));
+
+      const combined = [...mappedApiVisits];
+      for (const lv of localVisits) {
+        if (!combined.some(c => c.id === lv.id)) combined.push(lv);
+      }
+      return combined;
+    }
+
+    return localVisits;
+  }, [apiVisits, effectiveAgentId, refreshKey]);
 
   // Load single active meeting note if present
   const singleMeetingNote = useMemo(() => {
@@ -47,40 +104,82 @@ export default function AgentDetailPage() {
     }
   }, [effectiveAgentId, refreshKey]);
 
-  // Load full completed meetings history array
+  // Load full completed meetings history array (merge DB and local storage)
   const completedMeetingsHistory = useMemo(() => {
-    try {
-      const saved = localStorage.getItem('ground_os_completed_meetings_history');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+    const localMeetings: any[] = (() => {
+      try {
+        const saved = localStorage.getItem('ground_os_completed_meetings_history');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+      // If no multi-history exists yet but single meeting note exists, wrap it
+      if (singleMeetingNote) {
+        return [{
+          id: singleMeetingNote.id || 'm1',
+          meetingId: singleMeetingNote.id || 'm1',
+          businessName: singleMeetingNote.businessName || 'Sreejal Jewellers',
+          clientName: singleMeetingNote.businessOwnerName || 'Uttam',
+          agentName: singleMeetingNote.agentName || 'Nilesh Somnawane',
+          duration: singleMeetingNote.duration || '00:14',
+          qualityScore: singleMeetingNote.qualityScore || 92,
+          outcome: singleMeetingNote.outcome || 'High Intent',
+          summary: singleMeetingNote.summary || singleMeetingNote.notes || 'Client expressed strong interest in smart POS integration and requested commercial proposal.',
+          nextAction: singleMeetingNote.nextAction || 'Send WhatsApp proposal',
+          selfieUrl: singleMeetingNote.selfieUrl,
+          customerPhone: singleMeetingNote.customerPhone || '9876543210',
+          completedAt: singleMeetingNote.completedAt || new Date().toISOString(),
+          leadTapped: localStorage.getItem('ground_os_lead_tapped_m1') === 'true' || singleMeetingNote.leadTapped === true,
+        }];
+      }
+      return [];
+    })();
+
+    if (apiMeetings.length > 0) {
+      const mappedApiMeetings = apiMeetings.map(m => {
+        const durationSec = m.durationSeconds || 840;
+        const mins = Math.floor(durationSec / 60);
+        const secs = durationSec % 60;
+        const formattedDur = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        const isTapped = m.visit?.leadTapped === true || 
+          localStorage.getItem(`ground_os_lead_tapped_${m.id}`) === 'true' ||
+          (m.id === 'm1' && localStorage.getItem('ground_os_lead_tapped_m1') === 'true');
+
+        return {
+          id: m.id,
+          meetingId: m.id,
+          businessName: m.customer?.businessName || (m.customer?.firstName ? `${m.customer.firstName} ${m.customer.lastName || ''}`.trim() : 'Sreejal Jewellers'),
+          clientName: m.customer ? `${m.customer.firstName} ${m.customer.lastName || ''}`.trim() : 'Uttam',
+          agentName: m.agent?.user ? `${m.agent.user.firstName} ${m.agent.user.lastName}`.trim() : 'Nilesh Somnawane',
+          duration: formattedDur,
+          qualityScore: m.qualityScore || m.insight?.qualityScore || 92,
+          outcome: m.insight?.intentLevel === 'VERY_HIGH' || m.insight?.intentLevel === 'HIGH' ? 'High Intent' : (m.insight?.intentLevel || 'High Intent'),
+          summary: m.insight?.summary || m.notes || 'Client expressed strong interest in smart POS integration and requested commercial proposal.',
+          nextAction: m.insight?.recommendedAction || 'Send WhatsApp proposal',
+          selfieUrl: m.selfieUrl || m.recording?.storageUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&fit=crop&crop=face',
+          customerPhone: m.customer?.phone || '9876543210',
+          completedAt: m.endedAt || m.startedAt || new Date().toISOString(),
+          leadTapped: isTapped,
+          dealValue: m.insight?.dealValue || '₹1,20,000',
+        };
+      });
+
+      const combined = [...mappedApiMeetings];
+      for (const lm of localMeetings) {
+        if (!combined.some(c => c.id === lm.id || c.meetingId === lm.id)) {
+          combined.push(lm);
         }
       }
-    } catch (e) {
-      console.warn(e);
+      return combined;
     }
-    // If no multi-history exists yet but single meeting note exists, wrap it
-    if (singleMeetingNote) {
-      return [{
-        id: singleMeetingNote.id || 'm1',
-        meetingId: singleMeetingNote.id || 'm1',
-        businessName: singleMeetingNote.businessName || 'Sreejal Jewellers',
-        clientName: singleMeetingNote.businessOwnerName || 'Uttam',
-        agentName: singleMeetingNote.agentName || 'Nilesh Somnawane',
-        duration: singleMeetingNote.duration || '00:14',
-        qualityScore: singleMeetingNote.qualityScore || 88,
-        outcome: singleMeetingNote.outcome || 'High Intent',
-        summary: singleMeetingNote.summary || singleMeetingNote.notes || 'Client expressed strong interest in smart POS integration and requested commercial proposal.',
-        nextAction: singleMeetingNote.nextAction || 'Send WhatsApp proposal',
-        selfieUrl: singleMeetingNote.selfieUrl,
-        customerPhone: singleMeetingNote.customerPhone || '9876543210',
-        completedAt: singleMeetingNote.completedAt || new Date().toISOString(),
-        leadTapped: localStorage.getItem('ground_os_lead_tapped_m1') === 'true' || singleMeetingNote.leadTapped === true,
-      }];
-    }
-    return [];
-  }, [singleMeetingNote, refreshKey]);
+
+    return localMeetings;
+  }, [apiMeetings, singleMeetingNote, refreshKey]);
 
   const verificationData = useMemo(() => {
     try {
@@ -181,7 +280,7 @@ export default function AgentDetailPage() {
     '+91 98765 43210';
   const currentAgentTerritory = agentData?.territory || 
     (agentId === 'me' && user?.territory ? user.territory : null) || 
-    'Pune (Maharashtra Hub)';
+    'Delhi NCR (Dwarka Hub)';
 
   const initials = currentAgentName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase() || 'AG';
 
@@ -451,7 +550,7 @@ export default function AgentDetailPage() {
 
                     <button 
                       className="btn btn-secondary"
-                      onClick={() => navigate('/meetings/m1/report')}
+                      onClick={() => navigate(`/meetings/${meetingId}/report`)}
                       style={{ fontSize: '0.825rem', padding: '8px 14px', gap: '6px' }}
                     >
                       Open Full AI Report <ExternalLink size={13} />

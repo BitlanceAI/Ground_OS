@@ -7,7 +7,7 @@ import {
   Target, CalendarPlus, CheckCircle2, X, Shield, Phone, Sparkles, Building
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { agentsApi, meetingsApi } from '../../lib/api';
+import { agentsApi, meetingsApi, visitsApi } from '../../lib/api';
 import LiveAgentMap from '../../components/map/LiveAgentMap';
 import AIPriorityFeed from '../../components/ai-feed/AIPriorityFeed';
 import { reverseGeocode } from '../../lib/geocoder';
@@ -80,36 +80,100 @@ export default function CommandCenterPage() {
     };
   }, []);
 
-  // Dynamic visits from localStorage
+  // Real-time DB visits and meetings state
+  const [dbVisits, setDbVisits] = useState<any[]>([]);
+  const [dbMeetings, setDbMeetings] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchRealData = async () => {
+      try {
+        const [vRes, mRes] = await Promise.all([
+          visitsApi.list().catch(() => ({ data: [] })),
+          meetingsApi.list().catch(() => ({ data: [] })),
+        ]);
+        if (isMounted) {
+          if (vRes?.data && Array.isArray(vRes.data)) setDbVisits(vRes.data);
+          if (mRes?.data && Array.isArray(mRes.data)) setDbMeetings(mRes.data);
+        }
+      } catch (err) {
+        console.warn('Visits/meetings sync notice:', err);
+      }
+    };
+    fetchRealData();
+    const interval = setInterval(fetchRealData, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [tick]);
+
+  // Dynamic visits combining DB and local items
   const visits = useMemo(() => {
+    const mappedDb = dbVisits.map((v: any) => ({
+      id: v.id,
+      customerName: v.customer ? `${v.customer.firstName} ${v.customer.lastName || ''}`.trim() : 'Client',
+      business: v.customer?.businessName || v.destination || 'Business Shop',
+      location: v.destination || v.customer?.address || 'Dwarka Sector 12, Delhi NCR',
+      lat: v.destinationLat || v.arrivalLatitude || 28.3515,
+      lng: v.destinationLng || v.arrivalLongitude || 77.5529,
+      status: v.status?.toLowerCase() === 'completed' ? 'completed' : v.status?.toLowerCase() === 'in_progress' ? 'in_progress' : v.status?.toLowerCase() || 'assigned',
+      date: v.scheduledAt ? new Date(v.scheduledAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      time: v.scheduledAt ? new Date(v.scheduledAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '11:00 AM',
+      leadTapped: v.leadTapped ?? false,
+      type: 'Field Visit',
+    }));
+
     try {
       const saved = localStorage.getItem('ground_os_agent_visits');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const existingIds = new Set(mappedDb.map(v => v.id));
+          parsed.forEach(p => {
+            if (!existingIds.has(p.id)) mappedDb.push(p);
+          });
+        }
       }
     } catch (e) {
       console.error(e);
     }
-    return [];
-  }, [tick]);
+    return mappedDb;
+  }, [dbVisits, tick]);
 
-  // Dynamic meeting notes from localStorage
+  // Dynamic meeting notes loaded from DB meetings and local notes
   const meetingNotes = useMemo(() => {
+    if (dbMeetings.length > 0) {
+      const latest = dbMeetings[0];
+      const insight = latest.insight || {};
+      const budget = insight.budget || {};
+      return {
+        id: latest.id,
+        businessName: latest.customer?.businessName || latest.title || 'Sreejal Jewellers',
+        businessOwnerName: latest.customer?.firstName || 'Uttam',
+        agentName: latest.agent?.user ? `${latest.agent.user.firstName} ${latest.agent.user.lastName}` : 'Nilesh Somnawane',
+        summary: insight.summary || latest.notes || 'Client expressed strong interest in smart POS integration and requested commercial proposal.',
+        qualityScore: latest.qualityScore || insight.qualityScore || 92,
+        intentLevel: insight.intentLevel || 'HIGH',
+        outcome: insight.intentLevel === 'HIGH' ? 'High Intent' : 'Qualified Deal',
+        nextAction: insight.recommendedAction || 'Send proposal on WhatsApp',
+        expectedDealValue: budget.dealValue || budget.expectedDealValue || '₹1,20,000',
+        dealValue: budget.dealValue || budget.expectedDealValue || '₹1,20,000',
+        duration: latest.durationSeconds ? `${Math.floor(latest.durationSeconds / 60)}:${String(latest.durationSeconds % 60).padStart(2, '0')}` : '14:00',
+        leadTapped: true,
+      };
+    }
+
     try {
       const saved = localStorage.getItem('meeting_notes_m1');
       if (saved) {
-        if (saved.includes('Deepgram Nova-2') || saved.includes('Discussion conducted at Sreejal Jewellers with Uttam')) {
-          localStorage.removeItem('meeting_notes_m1');
-          return null;
-        }
         return JSON.parse(saved);
       }
     } catch (e) {
       console.error(e);
     }
     return null;
-  }, [tick]);
+  }, [dbMeetings, tick]);
 
   // Lead tapped status for Nilesh / primary agent
   const isLeadTappedPrimary = useMemo(() => {

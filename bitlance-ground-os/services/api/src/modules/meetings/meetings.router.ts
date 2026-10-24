@@ -86,8 +86,10 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
       where,
       include: {
         agent: { include: { user: { select: { id: true, firstName: true, lastName: true } } } },
-        customer: { select: { id: true, firstName: true, lastName: true, businessName: true } },
+        customer: { select: { id: true, firstName: true, lastName: true, businessName: true, phone: true } },
         insight: true,
+        visit: { select: { id: true, status: true, leadTapped: true, destination: true } },
+        recording: true,
       },
       orderBy: { startedAt: 'desc' },
       take: 20,
