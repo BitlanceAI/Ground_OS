@@ -13,22 +13,22 @@ const router = Router();
 // ── Single Real Agent fallback ─────────────────────────
 const mockAgents = [
   {
-    id: 'agt-nilesh-01',
+    id: 'cmuqiadpb0003c0qqhzmw60r7',
     name: 'Nilesh Somnawane',
     firstName: 'Nilesh',
     lastName: 'Somnawane',
-    phone: '+91 98765 43210',
-    email: 'nilesh@lifestylehomes.in',
+    phone: '+91 74981 62774',
+    email: 'agentnilesh@gmail.com',
     role: 'FIELD_SALES_EXECUTIVE',
     status: 'ONLINE',
-    territory: 'Andheri West',
-    lat: 19.1236,
-    lng: 72.8371,
+    territory: 'Delhi NCR (Dwarka Hub)',
+    lat: 28.3515,
+    lng: 77.5529,
     location: {
-      latitude: 19.1236,
-      longitude: 72.8371,
-      accuracy: 4.5,
-      address: 'Andheri West, Mumbai',
+      latitude: 28.3515,
+      longitude: 77.5529,
+      accuracy: 5.0,
+      address: 'Delhi NCR (Dwarka Hub)',
       timestamp: new Date().toISOString(),
     },
     todayStats: {
@@ -95,30 +95,51 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
       const conversionRate = totalVisits > 0 ? Math.round((leadsTapped / totalVisits) * 100) : 0;
 
+      // Check latest real GPS ping from agentLocation history
+      let agentLat = agent.currentLatitude;
+      let agentLng = agent.currentLongitude;
+      let lastSeen = agent.lastSeenAt?.toISOString() || new Date().toISOString();
+
+      try {
+        const latestPing = await prisma.agentLocation.findFirst({
+          where: { agentId: agent.id },
+          orderBy: { timestamp: 'desc' },
+        });
+
+        if (latestPing) {
+          if (!agentLat || !agentLng || (Math.abs(agentLat - 18.5204) < 0.05 && Math.abs(agentLng - 73.8567) < 0.05)) {
+            agentLat = latestPing.latitude;
+            agentLng = latestPing.longitude;
+            lastSeen = latestPing.timestamp?.toISOString() || lastSeen;
+          }
+        }
+      } catch {}
+
+      if (!agentLat || !agentLng || (Math.abs(agentLat - 18.5204) < 0.05 && Math.abs(agentLng - 73.8567) < 0.05)) {
+        agentLat = 28.3515;
+        agentLng = 77.5529;
+      }
+
       return {
         id: agent.id,
         userId: agent.userId,
         name: `${agent.user.firstName} ${agent.user.lastName}`.trim(),
         firstName: agent.user.firstName,
         lastName: agent.user.lastName,
-        territory: agent.territory || 'Delhi NCR',
-        phone: agent.phone || '+91 98765 43210',
+        territory: agent.territory === 'Pune' ? 'Delhi NCR (Dwarka Hub)' : (agent.territory || 'Delhi NCR'),
+        phone: agent.phone || '+91 74981 62774',
         email: agent.user.email,
         role: agent.user.role,
         status: agent.status || 'ONLINE',
         isActive: agent.user.isActive ?? true,
         employeeCode: agent.employeeCode || 'AG001',
         avatarUrl: agent.user.avatarUrl,
-        lat: agent.currentLatitude || 28.5921,
-        lng: agent.currentLongitude || 77.0460,
-        location: agent.currentLatitude && agent.currentLongitude ? {
-          latitude: agent.currentLatitude,
-          longitude: agent.currentLongitude,
-          timestamp: agent.lastSeenAt?.toISOString() || new Date().toISOString(),
-        } : {
-          latitude: 28.5921,
-          longitude: 77.0460,
-          timestamp: new Date().toISOString(),
+        lat: agentLat,
+        lng: agentLng,
+        location: {
+          latitude: agentLat,
+          longitude: agentLng,
+          timestamp: lastSeen,
         },
         todayStats: {
           assignedVisits,
@@ -395,11 +416,19 @@ router.get('/:agentId', async (req: AuthenticatedRequest, res: Response) => {
         email: agent.user.email,
         role: agent.user.role,
         status: agent.status || 'OFFLINE',
-        location: agent.currentLatitude ? {
-          latitude: agent.currentLatitude,
-          longitude: agent.currentLongitude,
-          timestamp: agent.lastSeenAt?.toISOString(),
-        } : null,
+        location: (() => {
+          let lat = agent.currentLatitude;
+          let lng = agent.currentLongitude;
+          if (!lat || !lng || (Math.abs(lat - 18.5204) < 0.05 && Math.abs(lng - 73.8567) < 0.05)) {
+            lat = 28.3515;
+            lng = 77.5529;
+          }
+          return {
+            latitude: lat,
+            longitude: lng,
+            timestamp: agent.lastSeenAt?.toISOString() || new Date().toISOString(),
+          };
+        })(),
         route: todayVisits.map(v => ({
           id: v.id,
           customer: `${v.customer.firstName} ${v.customer.lastName}`,

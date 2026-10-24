@@ -96,15 +96,15 @@ export default function VisitsListPage() {
           }
         },
         (err) => {
-          // Default agent location in Pune
-          const defaultPune = {
-            lat: 18.5204,
-            lng: 73.8567,
-            address: 'FC Road, Pune, Maharashtra',
+          // Default agent location in Delhi NCR
+          const defaultDelhi = {
+            lat: 28.3515,
+            lng: 77.5529,
+            address: 'Delhi NCR (Dwarka Hub)',
             timestamp: new Date().toISOString(),
           };
-          localStorage.setItem(`ground_os_agent_location_${agentKey}`, JSON.stringify(defaultPune));
-          localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultPune));
+          localStorage.setItem(`ground_os_agent_location_${agentKey}`, JSON.stringify(defaultDelhi));
+          localStorage.setItem('ground_os_agent_location', JSON.stringify(defaultDelhi));
         },
         { enableHighAccuracy: true, timeout: 5000 }
       );

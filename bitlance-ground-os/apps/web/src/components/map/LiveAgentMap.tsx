@@ -58,6 +58,7 @@ export default function LiveAgentMap({
   const markersLayerRef = useRef<any>(null);
   const markerMapRef = useRef<Map<string, any>>(new Map());
 
+  const [mapReady, setMapReady] = useState(false);
   const [activeTheme, setActiveTheme] = useState<MapTheme>('dark');
   const [internalSelectedAgentId, setInternalSelectedAgentId] = useState<string>('all');
   const selectedAgentId = controlledAgentId !== undefined ? controlledAgentId : internalSelectedAgentId;
@@ -123,11 +124,11 @@ export default function LiveAgentMap({
     };
   };
 
-  // Determine primary agent's initial position
+  // Determine primary agent's initial position (Delhi NCR fallback, never Pune)
   const primaryAgent = agents.find(a => a.isLiveGPS) || agents[0];
-  const initialCenter: [number, number] = primaryAgent && primaryAgent.lat && primaryAgent.lng
+  const initialCenter: [number, number] = (primaryAgent && primaryAgent.lat && primaryAgent.lng && Math.abs(primaryAgent.lat - 18.5204) >= 0.05)
     ? [primaryAgent.lat, primaryAgent.lng]
-    : [18.5204, 73.8567];
+    : [28.3515, 77.5529];
 
   // Initialize Map
   useEffect(() => {
@@ -154,6 +155,7 @@ export default function LiveAgentMap({
       const markersLayer = L.layerGroup().addTo(map);
       markersLayerRef.current = markersLayer;
       mapInstanceRef.current = map;
+      setMapReady(true);
 
       setTimeout(() => {
         if (mapInstanceRef.current) {
@@ -169,6 +171,7 @@ export default function LiveAgentMap({
         tileLayerRef.current = null;
         markersLayerRef.current = null;
         markerMapRef.current.clear();
+        setMapReady(false);
       }
     };
   }, []);
@@ -190,7 +193,7 @@ export default function LiveAgentMap({
 
   // Update markers and render all agents
   useEffect(() => {
-    if (!mapInstanceRef.current || !markersLayerRef.current) return;
+    if (!mapInstanceRef.current || !markersLayerRef.current || !mapReady) return;
 
     import('leaflet').then(L => {
       if (!markersLayerRef.current) return;
@@ -208,11 +211,12 @@ export default function LiveAgentMap({
             lastName: 'Somnawane',
             name: 'Nilesh Somnawane',
             status: 'ONLINE',
-            lat: 28.5921,
-            lng: 77.0460,
+            lat: 28.3515,
+            lng: 77.5529,
             territory: 'Delhi NCR (Dwarka Hub)',
             currentCustomer: destinationPlace?.name || null,
             employeeCode: 'AG001',
+            isLiveGPS: true,
           }];
 
       displayAgents.forEach((agent) => {
@@ -382,10 +386,12 @@ export default function LiveAgentMap({
           }
         } else if (boundsPoints.length === 1) {
           mapInstanceRef.current.setView(boundsPoints[0], 15);
+        } else {
+          mapInstanceRef.current.setView([28.3515, 77.5529], 15);
         }
       }
     });
-  }, [agents, destinationPlace, selectedAgentId]);
+  }, [mapReady, agents, destinationPlace, selectedAgentId]);
 
   // Handler for agent dropdown selection
   const handleAgentSelect = (agentId: string) => {
@@ -399,7 +405,7 @@ export default function LiveAgentMap({
 
     if (agentId === 'all') {
       const validPoints: [number, number][] = agents
-        .filter(a => a.lat && a.lng)
+        .filter(a => a.lat && a.lng && Math.abs(a.lat - 18.5204) >= 0.05)
         .map(a => [a.lat, a.lng]);
       if (destinationPlace?.lat && destinationPlace?.lng) {
         validPoints.push([destinationPlace.lat, destinationPlace.lng]);
@@ -410,6 +416,8 @@ export default function LiveAgentMap({
           mapInstanceRef.current.fitBounds(L.latLngBounds(validPoints), { padding: [50, 50], maxZoom: 16 });
         } else if (validPoints.length === 1) {
           mapInstanceRef.current.flyTo(validPoints[0], 15, { duration: 1.2 });
+        } else {
+          mapInstanceRef.current.flyTo([28.3515, 77.5529], 15, { duration: 1.2 });
         }
       });
     } else {
@@ -426,9 +434,14 @@ export default function LiveAgentMap({
 
   const handleRecenterOnLiveGPS = () => {
     const liveAgent = agents.find(a => a.isLiveGPS) || agents[0];
-    if (liveAgent && liveAgent.lat && liveAgent.lng && mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([liveAgent.lat, liveAgent.lng], 16, { duration: 1.2 });
-      handleAgentSelect(liveAgent.id);
+    const targetLat = (liveAgent && liveAgent.lat && Math.abs(liveAgent.lat - 18.5204) >= 0.05) ? liveAgent.lat : 28.3515;
+    const targetLng = (liveAgent && liveAgent.lng && Math.abs(liveAgent.lng - 73.8567) >= 0.05) ? liveAgent.lng : 77.5529;
+
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([targetLat, targetLng], 16, { duration: 1.2 });
+      if (liveAgent?.id) {
+        handleAgentSelect(liveAgent.id);
+      }
     }
   };
 
@@ -483,9 +496,15 @@ export default function LiveAgentMap({
             }}
           >
             <option value="all" style={{ background: '#0f172a', color: '#fff' }}>
-              🌐 All Active Agents ({agents.length})
+              🌐 All Active Agents ({agents.length || 1})
             </option>
-            {agents.map((ag) => (
+            {((agents && agents.length > 0) ? agents : [{
+              id: 'cmuqiadpb0003c0qqhzmw60r7',
+              name: 'Nilesh Somnawane',
+              firstName: 'Nilesh',
+              status: 'ONLINE',
+              isLiveGPS: true,
+            }]).map((ag) => (
               <option key={ag.id} value={ag.id} style={{ background: '#0f172a', color: '#fff' }}>
                 👔 {ag.name || ag.firstName} {ag.isLiveGPS ? '📍 (Live GPS)' : `(${ag.status})`}
               </option>

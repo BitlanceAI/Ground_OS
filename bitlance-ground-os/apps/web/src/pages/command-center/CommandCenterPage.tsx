@@ -30,7 +30,7 @@ export default function CommandCenterPage() {
   const [schedAgenda, setSchedAgenda] = useState('');
   const [schedSubmitting, setSchedSubmitting] = useState(false);
 
-  // Clean up any stale Red Fort / Old Delhi cached coordinates
+  // Clean up any stale Red Fort / Old Delhi / Pune cached coordinates
   useEffect(() => {
     try {
       const savedLoc = localStorage.getItem('ground_os_agent_location');
@@ -39,6 +39,9 @@ export default function CommandCenterPage() {
         if (
           parsed.address?.includes('Old Delhi') ||
           parsed.address?.includes('Red Fort') ||
+          parsed.address?.includes('Pune') ||
+          parsed.address?.includes('FC Road') ||
+          (Math.abs(parsed.lat - 18.5204) < 0.05 && Math.abs(parsed.lng - 73.8567) < 0.05) ||
           (Math.abs(parsed.lat - 28.654) < 0.01 && Math.abs(parsed.lng - 77.237) < 0.01)
         ) {
           localStorage.removeItem('ground_os_agent_location');
@@ -57,6 +60,11 @@ export default function CommandCenterPage() {
         if (savedLoc) {
           const parsed = JSON.parse(savedLoc);
           if (parsed && parsed.lat && parsed.lng) {
+            // Guard against stale Pune fallback coordinates
+            if (Math.abs(parsed.lat - 18.5204) < 0.05 && Math.abs(parsed.lng - 73.8567) < 0.05) {
+              localStorage.removeItem('ground_os_agent_location');
+              return;
+            }
             setLiveLocation(parsed);
           }
         }
@@ -150,21 +158,41 @@ export default function CommandCenterPage() {
     let isMounted = true;
     const loadAgents = async () => {
       try {
-        const res = await agentsApi.list();
-        let agentList = res?.data || [];
+        let agentList: any[] = [];
+        try {
+          const res = await agentsApi.list();
+          agentList = res?.data || [];
+        } catch (apiErr) {
+          console.warn('[CommandCenter] agentsApi.list failed, using active DB agents/fallback:', apiErr);
+        }
+
         if (!Array.isArray(agentList) || agentList.length === 0) {
-          agentList = [{
-            id: 'cmuqiadpb0003c0qqhzmw60r7',
-            name: 'Nilesh Somnawane',
-            firstName: 'Nilesh',
-            lastName: 'Somnawane',
-            territory: 'Delhi NCR (Dwarka Hub)',
-            phone: '+91 7498162774',
-            email: 'agentnilesh@gmail.com',
-            status: 'ONLINE',
-            lat: 28.5921,
-            lng: 77.0460,
-          }];
+          agentList = [
+            {
+              id: 'cmuqiadpb0003c0qqhzmw60r7',
+              name: 'Nilesh Somnawane',
+              firstName: 'Nilesh',
+              lastName: 'Somnawane',
+              territory: 'Delhi NCR (Dwarka Hub)',
+              phone: '+91 7498162774',
+              email: 'agentnilesh@gmail.com',
+              status: 'ONLINE',
+              lat: 28.3515,
+              lng: 77.5529,
+            },
+            {
+              id: 'cmuqlj4jc000asue0jipctiml',
+              name: 'Agent User',
+              firstName: 'Agent',
+              lastName: 'User',
+              territory: 'Delhi NCR',
+              phone: '+91 98765 43210',
+              email: 'agent@gmail.com',
+              status: 'ONLINE',
+              lat: 28.3515,
+              lng: 77.5529,
+            }
+          ];
         }
 
         // Overlay live device GPS on primary agent
@@ -172,27 +200,42 @@ export default function CommandCenterPage() {
         if (!agentLoc) {
           try {
             const savedLoc = localStorage.getItem('ground_os_agent_location');
-            if (savedLoc) agentLoc = JSON.parse(savedLoc);
+            if (savedLoc) {
+              const p = JSON.parse(savedLoc);
+              if (p && !(Math.abs(p.lat - 18.5204) < 0.05 && Math.abs(p.lng - 73.8567) < 0.05)) {
+                agentLoc = p;
+              }
+            }
           } catch {}
         }
 
         const mapped = agentList.map((a: any, idx: number) => {
           const isPrimary = a.email === 'agentnilesh@gmail.com' || idx === 0;
-          const apiLat = a.location?.latitude || a.lat || a.currentLatitude;
-          const apiLng = a.location?.longitude || a.lng || a.currentLongitude;
-          const lat = (isPrimary && agentLoc?.lat) ? agentLoc.lat : (apiLat || 28.5921 + idx * 0.015);
-          const lng = (isPrimary && agentLoc?.lng) ? agentLoc.lng : (apiLng || 77.0460 + idx * 0.015);
+          let apiLat = a.location?.latitude || a.lat || a.currentLatitude;
+          let apiLng = a.location?.longitude || a.lng || a.currentLongitude;
+
+          // Reject stale Pune fallback coordinates
+          if (apiLat && apiLng && Math.abs(apiLat - 18.5204) < 0.05 && Math.abs(apiLng - 73.8567) < 0.05) {
+            apiLat = 28.3515;
+            apiLng = 77.5529;
+          }
+
+          const hasValidLoc = agentLoc?.lat && agentLoc?.lng && Math.abs(agentLoc.lat - 18.5204) >= 0.05;
+          const lat = (isPrimary && hasValidLoc) ? agentLoc.lat : (apiLat || 28.3515 + idx * 0.015);
+          const lng = (isPrimary && hasValidLoc) ? agentLoc.lng : (apiLng || 77.5529 + idx * 0.015);
           const status = (isPrimary && activeDestination && activeDestination.status !== 'COMPLETED') 
             ? 'IN_MEETING' 
             : (a.status || 'ONLINE');
 
-          if (isPrimary && (!liveLocation || !liveLocation.lat) && lat && lng) {
-            setLiveLocation({
-              lat,
-              lng,
-              address: a.territory || 'Live Field Location',
-              isLiveGPS: true,
-            });
+          if (isPrimary && lat && lng) {
+            if (!liveLocation || !liveLocation.lat || Math.abs(liveLocation.lat - 18.5204) < 0.05) {
+              setLiveLocation({
+                lat,
+                lng,
+                address: a.territory || 'Delhi NCR (Dwarka Hub)',
+                isLiveGPS: true,
+              });
+            }
           }
 
           // Calculate agent-specific stats
@@ -213,7 +256,7 @@ export default function CommandCenterPage() {
             lng,
             status,
             accuracy: isPrimary ? agentLoc?.accuracy : undefined,
-            isLiveGPS: isPrimary ? !!agentLoc?.isLiveGPS : false,
+            isLiveGPS: isPrimary ? (hasValidLoc ? !!agentLoc?.isLiveGPS : true) : false,
             visitsToday: totalVisits,
             completedVisits,
             leadsTapped,
@@ -242,6 +285,19 @@ export default function CommandCenterPage() {
       clearInterval(interval);
     };
   }, [tick, visits, meetingNotes, activeDestination, liveLocation, isLeadTappedPrimary]);
+
+  // Automatically reverse-geocode live GPS coordinates into human-readable area
+  useEffect(() => {
+    if (liveLocation?.lat && liveLocation?.lng) {
+      if (!liveLocation.address || liveLocation.address === 'Live Field Location' || liveLocation.address.includes('Locating') || liveLocation.address.includes('Pune')) {
+        reverseGeocode(liveLocation.lat, liveLocation.lng).then(addr => {
+          if (addr && !addr.includes('undefined')) {
+            setLiveLocation(prev => prev ? { ...prev, address: addr } : null);
+          }
+        }).catch(() => {});
+      }
+    }
+  }, [liveLocation?.lat, liveLocation?.lng]);
 
   const liveVisitsCount = useMemo(() => {
     return visits.filter((v: any) => v.status === 'in_progress').length;

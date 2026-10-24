@@ -11,7 +11,7 @@ function getAuthToken(): string | null {
     const raw = localStorage.getItem('auth-store');
     if (!raw) return null;
     const state = JSON.parse(raw);
-    return state?.state?.tokens?.accessToken || null;
+    return state?.state?.tokens?.accessToken || state?.state?.accessToken || null;
   } catch {
     return null;
   }
