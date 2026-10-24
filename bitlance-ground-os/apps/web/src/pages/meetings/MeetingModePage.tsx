@@ -1050,37 +1050,9 @@ export default function MeetingModePage() {
                     fontSize: '0.78rem'
                   }}>
                     <span style={{ color: '#6ee7b7', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP dispatched
+                      <MessageCircle size={14} color="#25D366" /> WhatsApp OTP dispatched to customer
                     </span>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        const code = generatedOtp || '1234';
-                        setOtpValue(code);
-                        handleVerifyOTP(code);
-                      }}
-                      style={{
-                        background: 'rgba(37, 211, 102, 0.25)',
-                        border: '1px solid rgba(37, 211, 102, 0.5)',
-                        color: '#6ee7b7',
-                        fontSize: '0.72rem',
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Auto-Fill OTP: {generatedOtp || '1234'}
-                    </button>
                   </div>
-                  {waOtpLink && (
-                    <div style={{ fontSize: '0.73rem', color: 'var(--color-text-muted)', display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Didn't get message?</span>
-                      <a href={waOtpLink} target="_blank" rel="noopener noreferrer" style={{ color: '#25D366', textDecoration: 'underline' }}>
-                        Send via WhatsApp Web ↗
-                      </a>
-                    </div>
-                  )}
 
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input 
