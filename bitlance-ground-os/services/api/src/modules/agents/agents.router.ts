@@ -7,30 +7,8 @@ import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import prisma from '@ground-os/database';
-import IORedis from 'ioredis';
 
 const router = Router();
-
-// ── Redis pub/sub for live location broadcast ──────────────
-let redisPublisher: IORedis | null = null;
-
-function getRedisPublisher(): IORedis | null {
-  if (redisPublisher) return redisPublisher;
-  try {
-    redisPublisher = new IORedis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      lazyConnect: true,
-      maxRetriesPerRequest: 1,
-    });
-    redisPublisher.on('error', (err) => {
-      console.warn('[Agents] Redis pub/sub unavailable:', err.message);
-    });
-    return redisPublisher;
-  } catch {
-    return null;
-  }
-}
 
 // ── Single Real Agent fallback ─────────────────────────
 const mockAgents = [
@@ -481,8 +459,8 @@ router.post('/:agentId/location', async (req: AuthenticatedRequest, res: Respons
     console.warn('[Agents] DB unavailable for location update:', (err as Error).message);
   }
 
-  // Broadcast to realtime gateway via Redis pub/sub
-  const locationPayload = JSON.stringify({
+  // Broadcast to realtime gateway directly via HTTP
+  const locationPayload = {
     type: 'AGENT_LOCATION_UPDATE',
     agentId,
     latitude: lat,
@@ -490,16 +468,16 @@ router.post('/:agentId/location', async (req: AuthenticatedRequest, res: Respons
     accuracy: acc,
     address,
     timestamp: new Date().toISOString(),
-  });
+  };
 
-  try {
-    const pub = getRedisPublisher();
-    if (pub) {
-      await pub.publish('agent-locations', locationPayload);
-    }
-  } catch {
-    // Non-fatal
-  }
+  const realtimePort = process.env.REALTIME_PORT || '4001';
+  fetch(`http://127.0.0.1:${realtimePort}/broadcast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(locationPayload),
+  }).catch(() => {
+    // Non-fatal if realtime gateway is currently offline
+  });
 
   return res.json({ success: true, message: 'Location updated', data: { latitude: lat, longitude: lng, accuracy: acc, timestamp: new Date().toISOString() } });
 });

@@ -1,4 +1,4 @@
-import { Worker, Job } from 'bullmq';
+import { Worker, Job } from '../queue';
 import prisma from '@ground-os/database';
 
 export const setupNotificationsWorker = (redisConnection: any, eventBus: any, providers: any, logger: any) => {

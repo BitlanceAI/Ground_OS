@@ -12,8 +12,7 @@ For a detailed breakdown of the system components and internal workflows, please
 
 - **Node.js** (v20.0.0 or higher)
 - **npm** (v10.0.0 or higher)
-- **PostgreSQL** database (currently configured with Supabase)
-- **Redis** server for real-time WebSocket capabilities
+- **PostgreSQL** database (configured with Supabase)
 
 ## Getting Started
 

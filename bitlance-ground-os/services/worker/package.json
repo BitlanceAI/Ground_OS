@@ -12,8 +12,6 @@
   "dependencies": {
     "@ground-os/database": "*",
     "@ground-os/types": "*",
-    "bullmq": "^5.8.0",
-    "ioredis": "^5.4.0",
     "dotenv": "^16.4.5",
     "winston": "^3.13.0",
     "@google/genai": "^2.23.0"

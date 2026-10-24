@@ -21,11 +21,11 @@ The system is broken down into three main categories: Applications (Frontends), 
   - Technology: Node.js, Express, Prisma ORM
 
 - **Realtime Gateway (`services/realtime`)**
-  A dedicated WebSocket server designed for high-frequency, low-latency communication. It bridges agents and the web dashboard by listening to Redis Pub/Sub channels and broadcasting updates (like live telemetry and visit status changes).
-  - Technology: Node.js, `ws`, Redis
+  A dedicated WebSocket server designed for high-frequency, low-latency communication. It bridges agents and the web dashboard by broadcasting live updates (such as live telemetry and visit status changes) directly to connected dashboard clients.
+  - Technology: Node.js, `ws`
 
 - **Background Worker (`services/worker`)**
-  An asynchronous background processor responsible for offloading heavy tasks from the main API, such as AI processing, generating meeting reports, and executing delayed jobs.
+  An asynchronous background processor responsible for offloading heavy tasks from the main API, such as AI processing, generating meeting reports, and executing delayed jobs via lightweight async event handling.
   - Technology: Node.js
 
 ### 3. Shared Packages (`/packages`)
@@ -45,7 +45,7 @@ The system is broken down into three main categories: Applications (Frontends), 
    Authentication is managed centrally via JWT. Valid tokens contain role definitions and strict organizational boundaries (`organizationId`).
 
 2. **Real-time Telemetry**
-   When a field agent connects to the platform, their GPS coordinates are periodically pushed over WebSockets to the Realtime Gateway. The Gateway ensures authentication and delegates the message over a Redis Pub/Sub channel to be consumed and rebroadcast to respective dashboard users within the identical organization scope.
+   When a field agent connects to the platform, their GPS coordinates are periodically pushed over WebSockets to the Realtime Gateway. The Gateway ensures authentication and broadcasts to respective dashboard users within the identical organization scope.
 
 3. **Visit State Machine**
    Visit lifecycles transition through states (e.g., ASSIGNED -> EN_ROUTE -> ARRIVED -> MEETING_STARTED -> COMPLETED). The backend verifies physical locations against destination coordinates via geofencing before approving state transitions like `ARRIVED`.

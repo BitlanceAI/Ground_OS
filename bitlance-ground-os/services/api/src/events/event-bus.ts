@@ -1,17 +1,12 @@
 // ============================================================
-// EVENT BUS — Typed BullMQ event emission
-// All domain events are emitted through here, never directly
+// EVENT BUS — Direct Async Event Dispatch (Zero Redis)
+// All domain events are dispatched cleanly to worker
 // ============================================================
 
-import { Queue } from 'bullmq';
 import { BaseEvent, EventName, EVENTS } from '@ground-os/types';
 import { randomUUID } from 'crypto';
 
-const redisConnection = {
-  host: process.env.REDIS_HOST || '127.0.0.1',
-  port: parseInt(process.env.REDIS_PORT || '6379', 10),
-  maxRetriesPerRequest: null,
-};
+const WORKER_PORT = process.env.WORKER_PORT || '4002';
 
 // ── Queue registry ─────────────────────────────────────────
 const QUEUE_MAP: Record<string, string> = {
@@ -32,16 +27,6 @@ const QUEUE_MAP: Record<string, string> = {
   [EVENTS.LOCATION_VERIFIED]:         'analytics',
   [EVENTS.CREATIVE_GENERATED]:        'whatsapp-outbound',
 };
-
-// ── Queue cache ────────────────────────────────────────────
-const queues = new Map<string, Queue>();
-
-function getQueue(queueName: string): Queue {
-  if (!queues.has(queueName)) {
-    queues.set(queueName, new Queue(queueName, { connection: redisConnection as any }));
-  }
-  return queues.get(queueName)!;
-}
 
 // ── Emit a typed domain event ─────────────────────────────
 export async function emit<T = Record<string, unknown>>(
@@ -70,20 +55,21 @@ export async function emit<T = Record<string, unknown>>(
 
   const queueName = QUEUE_MAP[eventName] || 'analytics';
 
-  try {
-    const queue = getQueue(queueName);
-    await queue.add(eventName, event, {
-      attempts: 3,
-      backoff: { type: 'exponential', delay: 2000 },
-      removeOnComplete: { count: 1000 },
-      removeOnFail: false, // Keep failed jobs for investigation
+  // Dispatch asynchronously to background worker
+  fetch(`http://127.0.0.1:${WORKER_PORT}/jobs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ queueName, eventName, data: event }),
+  })
+    .then((res) => {
+      if (res.ok) {
+        console.log(`[EventBus] ✅ Dispatched ${eventName} → queue:${queueName} (eventId: ${eventId})`);
+      }
+    })
+    .catch((err) => {
+      // Non-fatal if worker process is offline
+      console.warn(`[EventBus] ⚠️ Worker offline on port ${WORKER_PORT}: ${(err as Error).message}`);
     });
-
-    console.log(`[EventBus] ✅ Emitted ${eventName} → queue:${queueName} (eventId: ${eventId})`);
-  } catch (err) {
-    // If Redis is unavailable, log but don't crash the main request
-    console.warn(`[EventBus] ⚠️ Failed to emit ${eventName} (Redis unavailable?): ${(err as Error).message}`);
-  }
 
   return eventId;
 }

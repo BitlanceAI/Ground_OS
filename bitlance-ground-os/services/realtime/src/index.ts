@@ -1,17 +1,14 @@
 // ============================================================
 // BITLANCE GROUND OS — Real-time WebSocket Gateway
-// Subscribes to Redis pub/sub for real agent events
-// Falls back to simulated telemetry when Redis unavailable
+// Direct in-memory WebSocket broadcasting with HTTP broadcast API
+// Zero Redis dependency
 // ============================================================
 
+import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import IORedis from 'ioredis';
 import jwt from 'jsonwebtoken';
 
 const PORT = parseInt(process.env.REALTIME_PORT || '4001', 10);
-const wss = new WebSocketServer({ port: PORT });
-
-console.log(`📡 Bitlance Ground OS Realtime Gateway running on ws://localhost:${PORT}`);
 
 interface ConnectedClient {
   ws: WebSocket;
@@ -21,70 +18,66 @@ interface ConnectedClient {
 
 const clients = new Map<WebSocket, ConnectedClient>();
 
-// ── Redis subscriber ────────────────────────────────────────
-let subscriber: IORedis | null = null;
-let usingMockTelemetry = false;
-
-function initRedisSubscriber() {
-  try {
-    subscriber = new IORedis({
-      host: process.env.REDIS_HOST || '127.0.0.1',
-      port: parseInt(process.env.REDIS_PORT || '6379', 10),
-      lazyConnect: false,
-      maxRetriesPerRequest: 1,
-      retryStrategy: (times) => times > 3 ? null : Math.min(times * 500, 2000),
-    });
-
-    subscriber.on('ready', () => {
-      console.log('[Realtime] ✅ Redis connected — listening on agent-locations, visit-events channels');
-      usingMockTelemetry = false;
-
-      // Subscribe to all real-time channels
-      subscriber!.subscribe('agent-locations', 'visit-events', 'meeting-events', 'ai-alerts', (err) => {
-        if (err) {
-          console.error('[Realtime] Redis subscribe error:', err);
-          usingMockTelemetry = true;
-        }
-      });
-    });
-
-    subscriber.on('message', (channel: string, message: string) => {
-      try {
-        const data = JSON.parse(message);
-
-        // Broadcast to all connected dashboard clients
-        broadcast({ ...data, _channel: channel });
-      } catch (err) {
-        console.error('[Realtime] Failed to parse Redis message:', err);
-      }
-    });
-
-    subscriber.on('error', (err) => {
-      if (!usingMockTelemetry) {
-        console.warn(`[Realtime] Redis unavailable — falling back to simulated telemetry: ${err.message}`);
-        usingMockTelemetry = true;
-      }
-    });
-  } catch (err) {
-    console.warn('[Realtime] Could not connect to Redis, using mock telemetry:', (err as Error).message);
-    usingMockTelemetry = true;
-  }
-}
-
 // ── Broadcast to all connected clients ─────────────────────
 function broadcast(data: any, excludeWs?: WebSocket) {
   const payload = JSON.stringify(data);
   for (const [ws, client] of clients) {
     if (ws !== excludeWs && ws.readyState === WebSocket.OPEN) {
-      if (data.organizationId && client.organizationId !== data.organizationId) continue;
+      if (data.organizationId && client.organizationId && client.organizationId !== data.organizationId) {
+        continue;
+      }
       try {
         ws.send(payload);
-      } catch (err) {
+      } catch {
         clients.delete(ws);
       }
     }
   }
 }
+
+// ── HTTP Server (serves /broadcast for backend API and /health) ─────
+const server = http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
+  // HTTP broadcast endpoint for services (e.g. api) to push events to WebSocket clients
+  if (req.method === 'POST' && req.url === '/broadcast') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+    });
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body || '{}');
+        broadcast(data);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, clients: clients.size }));
+      } catch (err: any) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', connectedClients: clients.size }));
+    return;
+  }
+
+  res.writeHead(404);
+  res.end();
+});
+
+const wss = new WebSocketServer({ server });
 
 // ── WebSocket connection handler ────────────────────────────
 wss.on('connection', (ws) => {
@@ -97,7 +90,6 @@ wss.on('connection', (ws) => {
     type: 'CONNECTED',
     serverTime: new Date().toISOString(),
     activeAgentsOnline: clients.size,
-    redisConnected: !usingMockTelemetry,
   }));
 
   ws.on('message', (message: Buffer) => {
@@ -117,7 +109,7 @@ wss.on('connection', (ws) => {
           client.organizationId = decoded.orgId || decoded.organizationId;
           client.agentId = decoded.sub || decoded.id;
           console.log(`[Realtime] Client authenticated: org=${client.organizationId}, agent=${client.agentId}`);
-        } catch (err) {
+        } catch {
           ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid token' }));
         }
         return;
@@ -125,8 +117,8 @@ wss.on('connection', (ws) => {
 
       // Require auth for other messages
       if (!client.organizationId) {
-         ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthenticated' }));
-         return;
+        ws.send(JSON.stringify({ type: 'ERROR', message: 'Unauthenticated' }));
+        return;
       }
 
       // Agent pushes location from PWA — forward to dashboard clients
@@ -161,5 +153,6 @@ setInterval(() => {
   broadcast({ type: 'HEARTBEAT', timestamp: new Date().toISOString(), connectedClients: clients.size });
 }, 5000);
 
-// Initialize Redis
-initRedisSubscriber();
+server.listen(PORT, () => {
+  console.log(`📡 Bitlance Ground OS Realtime Gateway running on ws://localhost:${PORT} and http://localhost:${PORT}`);
+});
