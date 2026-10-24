@@ -20,15 +20,14 @@ multiple independently-run processes:
 | --- | --- | --- | --- | --- |
 | Web dashboard | `apps/web` | React + Vite (static SPA) | 5173 (dev) | UI; calls API and WebSocket gateway |
 | API | `services/api` | Node, Express, Prisma, JWT | `API_PORT` (4000) | REST API under `/api/v1/*`, webhooks under `/webhooks/*`, `/health` |
-| Realtime gateway | `services/realtime` | Node, `ws`, Redis pub/sub | `REALTIME_PORT` (4001) | WebSocket server for live telemetry; authenticates with `JWT_SECRET` |
-| Worker | `services/worker` | Node, BullMQ | none | Background queues: AI transcription/analysis, WhatsApp, voice, creatives, notifications, workflows, analytics |
+| Realtime gateway | `services/realtime` | Node, `ws` (in-memory) | `REALTIME_PORT` (4001) | WebSocket server for live telemetry; authenticates with `JWT_SECRET` |
+| Worker | `services/worker` | Node (in-memory queues) | `WORKER_PORT` (4002) | Background queues: AI transcription/analysis, WhatsApp, voice, creatives, notifications, workflows, analytics |
 | Database package | `packages/database` | Prisma 5 (PostgreSQL) | – | Schema + shared Prisma client |
 | Types / UI | `packages/types`, `packages/ui` | TypeScript | – | Shared code |
 
 **External dependencies**
 
 - **PostgreSQL** — Supabase-hosted (README: "currently configured with Supabase").
-- **Redis** — required by API (event bus), Worker (BullMQ) and Realtime (pub/sub).
 - **Supabase Storage** — media bucket (`STORAGE_PROVIDER=supabase`).
 - Optional providers (selected by env): Gemini / OpenAI (LLM), Deepgram (STT),
   Meta WhatsApp Cloud API, VAPI (voice), Google Maps (frontend map key).
@@ -39,10 +38,9 @@ flowchart LR
   Browser -->|HTTPS /api/v1| API[services/api]
   Browser -->|WSS| RT[services/realtime]
   API --> PG[(PostgreSQL / Supabase)]
-  API --> Redis[(Redis)]
-  Worker[services/worker] --> Redis
+  API -->|HTTP /broadcast| RT
+  API -->|HTTP /jobs| Worker[services/worker]
   Worker --> PG
-  RT --> Redis
   API --> Ext[Supabase Storage, LLMs, WhatsApp, VAPI]
   Meta[Meta / VAPI webhooks] -->|/webhooks/*| API
 ```

@@ -14,8 +14,6 @@
     "dev:web": "turbo run dev --filter=@ground-os/web",
     "dev:api": "turbo run dev --filter=@ground-os/api",
     "dev:worker": "turbo run dev --filter=@ground-os/worker",
-    "redis:start": ".tools/redis-stable/src/redis-server --port 6379 --daemonize yes --dir .tools --appendonly no",
-    "redis:stop": ".tools/redis-stable/src/redis-cli shutdown",
     "build": "turbo run build",
     "db:generate": "turbo run db:generate --filter=@ground-os/database",
     "db:migrate": "turbo run db:migrate --filter=@ground-os/database",
