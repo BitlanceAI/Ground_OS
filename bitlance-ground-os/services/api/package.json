@@ -5,7 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch --env-file=../../.env src/server.ts",
-    "build": "tsc -p tsconfig.json",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --outfile=dist/server.js --external:express --external:@prisma/client --external:bcryptjs --external:compression --external:cors --external:dotenv --external:helmet --external:jsonwebtoken --external:morgan --external:multer --external:openai --external:uuid --external:winston --external:zod --external:@google/genai",
     "start": "node dist/server.js",
     "type-check": "tsc --noEmit"
   },
@@ -35,6 +35,7 @@
     "@types/morgan": "^1.9.9",
     "@types/multer": "^1.4.11",
     "@types/uuid": "^10.0.0",
+    "esbuild": "^0.21.5",
     "typescript": "^5.4.0"
   },
   "devDependencies": {
