@@ -77,8 +77,9 @@ router.post('/login', async (req: Request, res: Response) => {
         },
         tokens: { accessToken, refreshToken, expiresIn: 900 },
       });
-    } catch (dbErr) {
-      return res.status(500).json({ message: 'Database error' });
+    } catch (dbErr: any) {
+      console.error('[Auth] Login DB error:', dbErr?.message || dbErr);
+      return res.status(500).json({ message: 'Database error', detail: dbErr?.message });
     }
   } catch (err) {
     if (err instanceof z.ZodError) {
