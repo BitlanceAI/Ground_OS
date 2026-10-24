@@ -23,12 +23,14 @@
     "type-check": "turbo run type-check",
     "clean": "turbo run clean && rm -rf node_modules"
   },
-  "devDependencies": {
+  "dependencies": {
     "@types/node": "^20.0.0",
-    "prettier": "^3.2.0",
-    "tsx": "^4.23.15",
     "turbo": "^2.0.0",
     "typescript": "^5.4.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.2.0",
+    "tsx": "^4.23.15"
   },
   "engines": {
     "node": ">=20.0.0",

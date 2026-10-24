@@ -14,12 +14,12 @@
     "@ground-os/types": "*",
     "dotenv": "^16.4.5",
     "winston": "^3.13.0",
-    "@google/genai": "^2.23.0"
+    "@google/genai": "^2.23.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
     "nodemon": "^3.1.0",
-    "ts-node": "^10.9.0",
-    "typescript": "^5.4.0"
+    "ts-node": "^10.9.0"
   }
 }
