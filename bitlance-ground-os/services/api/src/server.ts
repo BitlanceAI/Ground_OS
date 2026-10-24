@@ -47,7 +47,7 @@ const PORT = process.env.API_PORT || 4000;
 app.use(helmet());
 app.use(compression());
 app.use(cors({
-  origin: process.env.CORS_ORIGINS?.split(',') || ['http://localhost:5173', 'http://localhost:5174'],
+  origin: true,
   credentials: true,
 }));
 app.use(requestId);
