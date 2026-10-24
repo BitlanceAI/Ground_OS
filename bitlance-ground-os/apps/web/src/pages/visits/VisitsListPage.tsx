@@ -67,8 +67,10 @@ export default function VisitsListPage() {
     }
   }, [visits, visitsStorageKey]);
 
-  // Request browser GPS position on mount to track agent
+  // Request browser GPS position on mount to track agent (only if user is an agent)
   useEffect(() => {
+    const isAgent = (user?.role?.toUpperCase() === 'AGENT' || user?.role?.toUpperCase() === 'FIELD_AGENT' || Boolean(user?.agentId) || user?.email?.includes('agent')) && user?.role !== 'CEO' && user?.role !== 'ADMIN';
+    if (!isAgent) return; // Never ask Admin for browser location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {

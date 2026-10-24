@@ -4,8 +4,9 @@ import {
   Phone, Palette, GitBranch, BarChart3, Brain, LogOut,
   Menu, X
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../../store/auth.store';
+import { agentsApi } from '../../lib/api';
 import TopBar from './TopBar';
 
 const adminNavItems = [
@@ -55,8 +56,60 @@ export default function AppShell() {
     navigate('/login');
   };
 
-  const isAgent = user?.role?.toLowerCase() === 'agent';
+  const isAgent = (user?.role?.toUpperCase() === 'AGENT' || user?.role?.toUpperCase() === 'FIELD_AGENT' || Boolean(user?.agentId) || user?.email?.includes('agent')) && user?.role !== 'CEO' && user?.role !== 'ADMIN';
   const navItems = isAgent ? agentNavItems : adminNavItems;
+
+  // Real-time GPS stream for field agents only (Admins are NEVER prompted)
+  useEffect(() => {
+    if (!isAgent || !navigator.geolocation) return;
+
+    let watchId: number | null = null;
+    const sendLocation = async (pos: GeolocationPosition) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const accuracy = pos.coords.accuracy;
+
+      const loc = {
+        lat,
+        lng,
+        accuracy,
+        agentId: user?.agentId,
+        agentName: user ? `${user.firstName} ${user.lastName}`.trim() : 'Nilesh Somnawane',
+        isLiveGPS: true,
+        timestamp: new Date().toISOString(),
+      };
+
+      localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
+      window.dispatchEvent(new Event('storage'));
+
+      const agentId = user?.agentId || 'cmuqiadpb0003c0qqhzmw60r7';
+      try {
+        await agentsApi.updateLocation(agentId, {
+          latitude: lat,
+          longitude: lng,
+          accuracy,
+        });
+      } catch (err) {}
+    };
+
+    navigator.geolocation.getCurrentPosition(
+      sendLocation,
+      (err) => console.warn('[Agent GPS] Initial position notice:', err.message),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+
+    watchId = navigator.geolocation.watchPosition(
+      sendLocation,
+      (err) => console.warn('[Agent GPS] Watch notice:', err.message),
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+
+    return () => {
+      if (watchId !== null && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [isAgent, user]);
 
   return (
     <div className="app-shell">

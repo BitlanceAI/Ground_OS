@@ -49,47 +49,26 @@ export default function CommandCenterPage() {
     }
   }, []);
 
-  // Fetch continuous live GPS location via watchPosition so CEO sees actual agent presence
+  // Sync agent's live GPS location without asking Admin for browser location access
   useEffect(() => {
-    let watchId: number | null = null;
-    if (navigator.geolocation) {
-      const updatePosition = async (pos: GeolocationPosition) => {
-        let lat = pos.coords.latitude;
-        let lng = pos.coords.longitude;
-        const accuracy = pos.coords.accuracy;
-
-        const address = await reverseGeocode(lat, lng);
-        const loc = {
-          lat,
-          lng,
-          accuracy,
-          address: address || 'Unknown Location',
-          isLiveGPS: true,
-          timestamp: new Date().toISOString(),
-        };
-        localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
-        setLiveLocation(loc);
-      };
-
-      navigator.geolocation.getCurrentPosition(
-        updatePosition,
-        (err) => {
-          console.warn('[GPS] Initial lookup failed:', err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-
-      watchId = navigator.geolocation.watchPosition(
-        updatePosition,
-        (err) => console.warn('[GPS] Watch position notice:', err.message),
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
-      );
-    }
-
-    return () => {
-      if (watchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(watchId);
+    const syncAgentLocation = () => {
+      try {
+        const savedLoc = localStorage.getItem('ground_os_agent_location');
+        if (savedLoc) {
+          const parsed = JSON.parse(savedLoc);
+          if (parsed && parsed.lat && parsed.lng) {
+            setLiveLocation(parsed);
+          }
+        }
+      } catch (e) {
+        console.warn('[Admin] Location sync notice:', e);
       }
+    };
+
+    syncAgentLocation();
+    window.addEventListener('storage', syncAgentLocation);
+    return () => {
+      window.removeEventListener('storage', syncAgentLocation);
     };
   }, []);
 
@@ -199,11 +178,22 @@ export default function CommandCenterPage() {
 
         const mapped = agentList.map((a: any, idx: number) => {
           const isPrimary = a.email === 'agentnilesh@gmail.com' || idx === 0;
-          const lat = isPrimary && agentLoc?.lat ? agentLoc.lat : (a.lat || 28.5921 + idx * 0.015);
-          const lng = isPrimary && agentLoc?.lng ? agentLoc.lng : (a.lng || 77.0460 + idx * 0.015);
+          const apiLat = a.location?.latitude || a.lat || a.currentLatitude;
+          const apiLng = a.location?.longitude || a.lng || a.currentLongitude;
+          const lat = (isPrimary && agentLoc?.lat) ? agentLoc.lat : (apiLat || 28.5921 + idx * 0.015);
+          const lng = (isPrimary && agentLoc?.lng) ? agentLoc.lng : (apiLng || 77.0460 + idx * 0.015);
           const status = (isPrimary && activeDestination && activeDestination.status !== 'COMPLETED') 
             ? 'IN_MEETING' 
             : (a.status || 'ONLINE');
+
+          if (isPrimary && (!liveLocation || !liveLocation.lat) && lat && lng) {
+            setLiveLocation({
+              lat,
+              lng,
+              address: a.territory || 'Live Field Location',
+              isLiveGPS: true,
+            });
+          }
 
           // Calculate agent-specific stats
           const totalVisits = isPrimary ? visits.length : (a.stats?.totalVisits || a.todayStats?.assignedVisits || 0);
@@ -246,7 +236,7 @@ export default function CommandCenterPage() {
     };
 
     loadAgents();
-    const interval = setInterval(loadAgents, 8000);
+    const interval = setInterval(loadAgents, 4000);
     return () => {
       isMounted = false;
       clearInterval(interval);
