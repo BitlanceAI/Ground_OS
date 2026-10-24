@@ -3,7 +3,7 @@
 // All API calls go through here. Auto-injects auth token.
 // ============================================================
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://ground-os-3mdrd.ondigitalocean.app';
 
 // ── Auth Store integration ─────────────────────────────────
 function getAuthToken(): string | null {
