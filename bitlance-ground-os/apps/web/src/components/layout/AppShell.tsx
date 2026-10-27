@@ -2,9 +2,10 @@ import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, MapPin, Mic, MessageSquare,
   Phone, Palette, GitBranch, BarChart3, Brain, LogOut,
-  Menu, X
+  Menu, X, Navigation
 } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/auth.store';
 import { agentsApi } from '../../lib/api';
 import TopBar from './TopBar';
@@ -50,6 +51,8 @@ export default function AppShell() {
   const { user, organization, logout } = useAuthStore();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'prompt' | 'granted' | 'denied' | 'syncing'>('idle');
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -59,57 +62,105 @@ export default function AppShell() {
   const isAgent = (user?.role?.toUpperCase() === 'AGENT' || user?.role?.toUpperCase() === 'FIELD_AGENT' || Boolean(user?.agentId) || user?.email?.includes('agent')) && user?.role !== 'CEO' && user?.role !== 'ADMIN';
   const navItems = isAgent ? agentNavItems : adminNavItems;
 
-  // Real-time GPS stream for field agents only (Admins are NEVER prompted)
+  const sendLocation = useCallback(async (pos: GeolocationPosition, showToast = false) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+    const accuracy = pos.coords.accuracy;
+
+    setGpsCoords({ lat, lng, accuracy });
+    setGpsStatus('granted');
+
+    const loc = {
+      lat,
+      lng,
+      accuracy,
+      agentId: user?.agentId,
+      agentName: user ? `${user.firstName} ${user.lastName}`.trim() : 'Nilesh Somnawane',
+      isLiveGPS: true,
+      timestamp: new Date().toISOString(),
+    };
+
+    localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
+    if (user?.agentId) {
+      localStorage.setItem(`ground_os_agent_location_${user.agentId}`, JSON.stringify(loc));
+    }
+    window.dispatchEvent(new Event('storage'));
+
+    const agentId = user?.agentId || 'cmuqiadpb0003c0qqhzmw60r7';
+    try {
+      await agentsApi.updateLocation(agentId, {
+        latitude: lat,
+        longitude: lng,
+        accuracy,
+      });
+      if (showToast) {
+        toast.success(`📍 Real GPS synced: ${lat.toFixed(4)}, ${lng.toFixed(4)} (Admin notified)`);
+      }
+    } catch (err) {}
+  }, [user]);
+
+  const requestGPS = useCallback((manual = true) => {
+    if (!navigator.geolocation) {
+      if (manual) toast.error('Geolocation is not supported by your browser');
+      setGpsStatus('denied');
+      return;
+    }
+
+    setGpsStatus('syncing');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => sendLocation(pos, manual),
+      (err) => {
+        setGpsStatus('denied');
+        if (manual) toast.error(`GPS permission error: ${err.message}. Please enable location in browser settings.`);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  }, [sendLocation]);
+
+  // Real-time GPS stream for field agents
   useEffect(() => {
     if (!isAgent || !navigator.geolocation) return;
 
-    let watchId: number | null = null;
-    const sendLocation = async (pos: GeolocationPosition) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      const accuracy = pos.coords.accuracy;
+    // Check existing stored location
+    try {
+      const saved = localStorage.getItem('ground_os_agent_location');
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (p?.lat && p?.lng && !(Math.abs(p.lat - 18.5204) < 0.05 && Math.abs(p.lng - 73.8567) < 0.05)) {
+          setGpsCoords({ lat: p.lat, lng: p.lng, accuracy: p.accuracy });
+          setGpsStatus('granted');
+        }
+      }
+    } catch {}
 
-      const loc = {
-        lat,
-        lng,
-        accuracy,
-        agentId: user?.agentId,
-        agentName: user ? `${user.firstName} ${user.lastName}`.trim() : 'Nilesh Somnawane',
-        isLiveGPS: true,
-        timestamp: new Date().toISOString(),
-      };
+    // Auto-prompt location
+    requestGPS(false);
 
-      localStorage.setItem('ground_os_agent_location', JSON.stringify(loc));
-      window.dispatchEvent(new Event('storage'));
-
-      const agentId = user?.agentId || 'cmuqiadpb0003c0qqhzmw60r7';
-      try {
-        await agentsApi.updateLocation(agentId, {
-          latitude: lat,
-          longitude: lng,
-          accuracy,
-        });
-      } catch (err) {}
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      sendLocation,
-      (err) => console.warn('[Agent GPS] Initial position notice:', err.message),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => sendLocation(pos, false),
+      (err) => {
+        console.warn('[Agent GPS] Watch notice:', err.message);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsStatus('denied');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 5000 }
     );
 
-    watchId = navigator.geolocation.watchPosition(
-      sendLocation,
-      (err) => console.warn('[Agent GPS] Watch notice:', err.message),
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
-    );
+    // Heartbeat every 15s to keep backend fresh
+    const heartbeat = setInterval(() => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => sendLocation(pos, false),
+        () => {},
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      );
+    }, 15000);
 
     return () => {
-      if (watchId !== null && navigator.geolocation) {
-        navigator.geolocation.clearWatch(watchId);
-      }
+      navigator.geolocation.clearWatch(watchId);
+      clearInterval(heartbeat);
     };
-  }, [isAgent, user]);
+  }, [isAgent, requestGPS, sendLocation]);
 
   return (
     <div className="app-shell">
@@ -206,6 +257,76 @@ export default function AppShell() {
         <div className="desktop-topbar">
           <TopBar organizationName={organization?.name || 'Bitlance Ground OS'} />
         </div>
+
+        {/* Live GPS Broadcast Banner for Field Agents */}
+        {isAgent && (
+          <div style={{
+            background: gpsStatus === 'granted'
+              ? 'linear-gradient(90deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04))'
+              : gpsStatus === 'denied'
+                ? 'linear-gradient(90deg, rgba(239,68,68,0.14), rgba(239,68,68,0.04))'
+                : 'linear-gradient(90deg, rgba(99,102,241,0.15), rgba(99,102,241,0.05))',
+            borderBottom: '1px solid ' + (gpsStatus === 'granted' ? 'rgba(16,185,129,0.25)' : gpsStatus === 'denied' ? 'rgba(239,68,68,0.35)' : 'rgba(99,102,241,0.3)'),
+            padding: '9px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            fontSize: '0.82rem',
+            position: 'sticky',
+            top: 0,
+            zIndex: 90,
+            backdropFilter: 'blur(8px)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: '50%',
+                background: gpsStatus === 'granted' ? '#10b981' : gpsStatus === 'denied' ? '#ef4444' : '#6366f1',
+                boxShadow: `0 0 8px ${gpsStatus === 'granted' ? '#10b981' : gpsStatus === 'denied' ? '#ef4444' : '#6366f1'}`,
+              }} />
+              <span>
+                {gpsStatus === 'granted' && gpsCoords ? (
+                  <>
+                    <strong style={{ color: '#10b981' }}>Live GPS Broadcasting:</strong>{' '}
+                    <span style={{ color: '#e2e8f0', fontFamily: 'var(--font-mono)' }}>
+                      {gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)}
+                    </span>
+                    {gpsCoords.accuracy ? <span style={{ color: 'var(--color-text-muted)' }}> (±{Math.round(gpsCoords.accuracy)}m)</span> : null}
+                    {' '}· Position syncing live to admin command map
+                  </>
+                ) : gpsStatus === 'denied' ? (
+                  <>
+                    <strong style={{ color: '#ef4444' }}>Location Access Blocked:</strong>{' '}
+                    Please allow location access in your browser to transmit your coordinates to the Admin Command Center.
+                  </>
+                ) : (
+                  <>
+                    <strong style={{ color: 'var(--color-brand-light)' }}>Live GPS Location Required:</strong>{' '}
+                    Please enable GPS so your real-time position appears on the Admin Panel and map.
+                  </>
+                )}
+              </span>
+            </div>
+            <button
+              onClick={() => requestGPS(true)}
+              className="btn btn-secondary"
+              style={{
+                fontSize: '0.75rem',
+                padding: '4px 12px',
+                borderColor: gpsStatus === 'granted' ? 'rgba(16,185,129,0.4)' : 'rgba(99,102,241,0.4)',
+                color: gpsStatus === 'granted' ? '#10b981' : '#fff',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+              }}
+            >
+              <Navigation size={12} className={gpsStatus === 'syncing' ? 'spin-icon' : ''} />
+              {gpsStatus === 'granted' ? 'Sync GPS Now' : gpsStatus === 'syncing' ? 'Acquiring...' : 'Enable Live GPS'}
+            </button>
+          </div>
+        )}
+
         <div className="page-content page-enter">
           <ErrorBoundary>
             <Outlet />

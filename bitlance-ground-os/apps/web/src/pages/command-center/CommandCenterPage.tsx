@@ -270,9 +270,31 @@ export default function CommandCenterPage() {
             apiLng = null;
           }
 
-          const lat = apiLat || (28.3515 + idx * 0.015);
-          const lng = apiLng || (77.5529 + idx * 0.015);
-          const hasRealGPS = !!(apiLat && apiLng);
+          // Check local storage for any live device GPS captured on this browser
+          let localLat: number | null = null;
+          let localLng: number | null = null;
+          let localLive = false;
+          try {
+            const saved = localStorage.getItem(`ground_os_agent_location_${a.id}`) ||
+                          (idx === 0 || a.email === 'agentnilesh@gmail.com' ? localStorage.getItem('ground_os_agent_location') : null);
+            if (saved) {
+              const p = JSON.parse(saved);
+              if (p?.lat && p?.lng && !(Math.abs(p.lat - 18.5204) < 0.05 && Math.abs(p.lng - 73.8567) < 0.05)) {
+                localLat = p.lat;
+                localLng = p.lng;
+                localLive = Boolean(p.isLiveGPS);
+              }
+            }
+          } catch {}
+
+          const lat = localLat || apiLat || (28.3515 + idx * 0.015);
+          const lng = localLng || apiLng || (77.5529 + idx * 0.015);
+          const hasRealGPS = Boolean((apiLat && apiLng) || localLive);
+
+          // Auto-sync local GPS to backend if backend doesn't have it yet
+          if (localLat && localLng && (!apiLat || Math.abs(apiLat - localLat) > 0.0001)) {
+            agentsApi.updateLocation(a.id, { latitude: localLat, longitude: localLng }).catch(() => {});
+          }
 
           const status = (activeDestination && activeDestination.status !== 'COMPLETED' && (a.email === 'agentnilesh@gmail.com' || idx === 0)) 
             ? 'IN_MEETING' 

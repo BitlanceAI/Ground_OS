@@ -106,8 +106,8 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
           orderBy: { timestamp: 'desc' },
         });
 
-        if (latestPing) {
-          if (!agentLat || !agentLng || (Math.abs(agentLat - 18.5204) < 0.05 && Math.abs(agentLng - 73.8567) < 0.05)) {
+        if (latestPing && latestPing.latitude && latestPing.longitude) {
+          if (!(Math.abs(latestPing.latitude - 18.5204) < 0.05 && Math.abs(latestPing.longitude - 73.8567) < 0.05)) {
             agentLat = latestPing.latitude;
             agentLng = latestPing.longitude;
             lastSeen = latestPing.timestamp?.toISOString() || lastSeen;
