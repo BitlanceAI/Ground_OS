@@ -259,74 +259,57 @@ export default function CommandCenterPage() {
           ];
         }
 
-        // Overlay live device GPS on primary agent
-        let agentLoc: any = liveLocation;
-        if (!agentLoc) {
-          try {
-            const savedLoc = localStorage.getItem('ground_os_agent_location');
-            if (savedLoc) {
-              const p = JSON.parse(savedLoc);
-              if (p && !(Math.abs(p.lat - 18.5204) < 0.05 && Math.abs(p.lng - 73.8567) < 0.05)) {
-                agentLoc = p;
-              }
-            }
-          } catch {}
-        }
-
         const mapped = agentList.map((a: any, idx: number) => {
-          const isPrimary = a.email === 'agentnilesh@gmail.com' || idx === 0;
+          // Always use API/DB returned coordinates (agents send heartbeats to backend)
           let apiLat = a.location?.latitude || a.lat || a.currentLatitude;
           let apiLng = a.location?.longitude || a.lng || a.currentLongitude;
 
           // Reject stale Pune fallback coordinates
           if (apiLat && apiLng && Math.abs(apiLat - 18.5204) < 0.05 && Math.abs(apiLng - 73.8567) < 0.05) {
-            apiLat = 28.3515;
-            apiLng = 77.5529;
+            apiLat = null;
+            apiLng = null;
           }
 
-          const hasValidLoc = agentLoc?.lat && agentLoc?.lng && Math.abs(agentLoc.lat - 18.5204) >= 0.05;
-          const lat = (isPrimary && hasValidLoc) ? agentLoc.lat : (apiLat || 28.3515 + idx * 0.015);
-          const lng = (isPrimary && hasValidLoc) ? agentLoc.lng : (apiLng || 77.5529 + idx * 0.015);
-          const status = (isPrimary && activeDestination && activeDestination.status !== 'COMPLETED') 
+          const lat = apiLat || (28.3515 + idx * 0.015);
+          const lng = apiLng || (77.5529 + idx * 0.015);
+          const hasRealGPS = !!(apiLat && apiLng);
+
+          const status = (activeDestination && activeDestination.status !== 'COMPLETED' && (a.email === 'agentnilesh@gmail.com' || idx === 0)) 
             ? 'IN_MEETING' 
             : (a.status || 'ONLINE');
 
-          if (isPrimary && lat && lng) {
+          // Update live location state from API data for header display
+          if (idx === 0 && lat && lng) {
             if (!liveLocation || !liveLocation.lat || Math.abs(liveLocation.lat - 18.5204) < 0.05) {
               setLiveLocation({
                 lat,
                 lng,
                 address: a.territory || 'Delhi NCR (Dwarka Hub)',
-                isLiveGPS: true,
+                isLiveGPS: hasRealGPS,
               });
             }
           }
 
-          // Calculate agent-specific stats
-          const totalVisits = isPrimary ? visits.length : (a.stats?.totalVisits || a.todayStats?.assignedVisits || 0);
-          const completedVisits = isPrimary 
-            ? visits.filter((v: any) => v.status === 'completed').length 
-            : (a.stats?.completedVisits || a.todayStats?.completedVisits || 0);
-          const leadsTapped = isPrimary 
-            ? (isLeadTappedPrimary ? 1 : 0) 
-            : (a.stats?.leadsTapped || 0);
-          const scheduledMeetings = isPrimary 
-            ? visits.filter((v: any) => v.type?.includes('Scheduled')).length + (meetingNotes ? 1 : 0)
-            : (a.stats?.scheduledMeetings || a.todayStats?.meetingsHeld || 0);
+          // Calculate agent-specific stats from API data
+          const isFirst = idx === 0;
+          const totalVisits = a.stats?.totalVisits || a.todayStats?.totalVisits || a.todayStats?.assignedVisits || (isFirst ? visits.length : 0);
+          const completedVisits = a.stats?.completedVisits || a.todayStats?.completedVisits || (isFirst ? visits.filter((v: any) => v.status === 'completed').length : 0);
+          const leadsTapped = a.stats?.leadsTapped || a.todayStats?.leadsTapped || (isFirst && isLeadTappedPrimary ? 1 : 0);
+          const scheduledMeetings = a.stats?.scheduledMeetings || a.todayStats?.scheduledMeetings || a.todayStats?.meetingsHeld || 0;
 
           return {
             ...a,
             lat,
             lng,
             status,
-            accuracy: isPrimary ? agentLoc?.accuracy : undefined,
-            isLiveGPS: isPrimary ? (hasValidLoc ? !!agentLoc?.isLiveGPS : true) : false,
+            accuracy: a.location?.accuracy,
+            isLiveGPS: hasRealGPS,
             visitsToday: totalVisits,
             completedVisits,
             leadsTapped,
             scheduledMeetings,
-            meetingsToday: isPrimary ? (meetingNotes ? 1 : 0) : (a.todayStats?.meetingsHeld || 0),
-            score: isPrimary ? (meetingNotes?.qualityScore || 88) : 85,
+            meetingsToday: a.todayStats?.meetingsHeld || (isFirst && meetingNotes ? 1 : 0),
+            score: a.todayStats?.qualityScore || (isFirst ? (meetingNotes?.qualityScore || 88) : 85),
             conversionRate: totalVisits > 0 ? Math.round((leadsTapped / totalVisits) * 100) : 0,
           };
         });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users, UserPlus, ShieldCheck,
@@ -6,10 +6,12 @@ import {
   ExternalLink, Eye, EyeOff, Search, Check, AlertTriangle, X,
   Copy, Sparkles, BarChart3, Target, Calendar, CalendarCheck,
   TrendingUp, ChevronRight, RefreshCw,
-  CheckCircle, Zap, Shield,
+  CheckCircle, Zap, Shield, Map, Navigation, Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { agentsApi, meetingsApi, customersApi } from '../../lib/api';
+import LiveAgentMap from '../../components/map/LiveAgentMap';
+import { reverseGeocode } from '../../lib/geocoder';
 
 export interface AgentRecord {
   id: string;
@@ -51,11 +53,13 @@ interface AgentReportRow {
   };
 }
 
-type ActiveTab = 'agents' | 'reports' | 'schedule';
+type ActiveTab = 'agents' | 'reports' | 'schedule' | 'live-map';
 
 export default function AgentsManagementPage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<ActiveTab>('agents');
+  const [selectedMapAgentId, setSelectedMapAgentId] = useState<string>('all');
+  const [agentAddresses, setAgentAddresses] = useState<Record<string, string>>({});
 
   const [agents, setAgents] = useState<AgentRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,6 +183,59 @@ export default function AgentsManagementPage() {
     if (activeTab === 'reports') fetchReport();
     if (activeTab === 'schedule') { fetchAgents(); fetchCustomers(); fetchReport(); }
   }, [activeTab, fetchAgents, fetchCustomers, fetchReport]);
+
+  const mapAgents = useMemo(() => {
+    return agents.map((a, idx) => {
+      let apiLat = (a as any).location?.latitude || a.lat || (a as any).currentLatitude;
+      let apiLng = (a as any).location?.longitude || a.lng || (a as any).currentLongitude;
+
+      // Reject stale Pune fallback coordinates
+      if (apiLat && apiLng && Math.abs(apiLat - 18.5204) < 0.05 && Math.abs(apiLng - 73.8567) < 0.05) {
+        apiLat = null;
+        apiLng = null;
+      }
+
+      const hasRealGPS = !!(apiLat && apiLng);
+      const lat = apiLat || (28.3515 + idx * 0.015);
+      const lng = apiLng || (77.5529 + idx * 0.015);
+
+      return {
+        id: a.id,
+        firstName: a.firstName || a.name?.split(' ')[0] || 'Agent',
+        lastName: a.lastName || a.name?.split(' ').slice(1).join(' ') || '',
+        name: a.name || `${a.firstName || ''} ${a.lastName || ''}`.trim(),
+        status: a.status || 'ONLINE',
+        lat,
+        lng,
+        territory: a.territory || 'Delhi NCR',
+        employeeCode: a.employeeCode || `AG00${idx + 1}`,
+        phone: a.phone || '+91 7498162774',
+        isLiveGPS: hasRealGPS,
+      };
+    });
+  }, [agents]);
+
+  useEffect(() => {
+    if (activeTab === 'live-map') {
+      fetchAgents();
+      const interval = setInterval(fetchAgents, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, fetchAgents]);
+
+  useEffect(() => {
+    if (activeTab !== 'live-map') return;
+    mapAgents.forEach(async (ag) => {
+      if (!agentAddresses[ag.id] && ag.lat && ag.lng) {
+        try {
+          const addr = await reverseGeocode(ag.lat, ag.lng);
+          if (addr) {
+            setAgentAddresses(prev => ({ ...prev, [ag.id]: addr }));
+          }
+        } catch {}
+      }
+    });
+  }, [activeTab, mapAgents, agentAddresses]);
 
   const handleNameChange = (nameVal: string) => {
     setNewFirstName(nameVal);
@@ -340,6 +397,9 @@ export default function AgentsManagementPage() {
         <button className={`amps-tab ${activeTab === 'agents' ? 'active' : ''}`} onClick={() => setActiveTab('agents')}>
           <Users size={15} /> Agents
         </button>
+        <button className={`amps-tab ${activeTab === 'live-map' ? 'active' : ''}`} onClick={() => setActiveTab('live-map')}>
+          <Map size={15} /> Live Map
+        </button>
         <button className={`amps-tab ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
           <BarChart3 size={15} /> Agent Reports
         </button>
@@ -442,6 +502,96 @@ export default function AgentsManagementPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* ═══ TAB: LIVE MAP ═════════════════════════════════════════════════ */}
+      {activeTab === 'live-map' && (
+        <div className="live-map-section">
+          <div className="live-map-header">
+            <div>
+              <h2 className="section-heading"><Map size={20} /> Live Agent Locations & Fleet Tracking</h2>
+              <p className="section-subtext">Real-time GPS tracking of field agents across assigned territories</p>
+            </div>
+            <div className="live-map-actions">
+              <span className="live-pulse-badge">
+                <span className="pulse-dot" /> LIVE POLLING (5s)
+              </span>
+              <button onClick={() => fetchAgents()} className="btn btn-secondary refresh-btn" disabled={loading}>
+                <RefreshCw size={14} className={loading ? 'spin-icon' : ''} />
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+          </div>
+
+          <div className="live-map-container-grid">
+            <div className="live-map-wrapper">
+              <LiveAgentMap
+                agents={mapAgents}
+                selectedAgentId={selectedMapAgentId}
+                onSelectAgent={(agentId) => setSelectedMapAgentId(agentId)}
+              />
+            </div>
+
+            <div className="agent-location-sidebar">
+              <div className="sidebar-header">
+                <h3><Navigation size={16} /> Active Field Agents ({mapAgents.length})</h3>
+                <span className="sidebar-sub">Click an agent to center map</span>
+              </div>
+              <div className="agent-location-list">
+                {mapAgents.map((ag) => {
+                  const isSelected = selectedMapAgentId === ag.id;
+                  const address = agentAddresses[ag.id];
+                  return (
+                    <div
+                      key={ag.id}
+                      className={`agent-location-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => setSelectedMapAgentId(isSelected ? 'all' : ag.id)}
+                    >
+                      <div className="agent-loc-card-header">
+                        <div className="agent-loc-avatar">
+                          {ag.name?.[0] || 'A'}
+                        </div>
+                        <div className="agent-loc-info">
+                          <div className="agent-loc-name-row">
+                            <span className="agent-loc-name">{ag.name}</span>
+                            <span className={`status-pill-small ${ag.status?.toLowerCase() || 'online'}`}>
+                              {ag.status || 'ONLINE'}
+                            </span>
+                          </div>
+                          <div className="agent-loc-sub">
+                            <span>{ag.employeeCode}</span>
+                            <span className="dot-sep">•</span>
+                            <span>{ag.phone}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="agent-loc-details">
+                        <div className="loc-detail-row">
+                          <MapPin size={13} className="loc-icon" />
+                          <span className="loc-text">{address || ag.territory || `${ag.lat.toFixed(4)}, ${ag.lng.toFixed(4)}`}</span>
+                        </div>
+                        <div className="loc-coords-row">
+                          <span className="coord-chip">Lat: {ag.lat.toFixed(4)}</span>
+                          <span className="coord-chip">Lng: {ag.lng.toFixed(4)}</span>
+                          {ag.isLiveGPS ? (
+                            <span className="badge badge-success" style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
+                              <Zap size={10} /> Real GPS
+                            </span>
+                          ) : (
+                            <span className="badge badge-secondary" style={{ fontSize: '0.68rem', padding: '2px 6px' }}>
+                              Default Pin
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ═══ TAB: REPORTS ═════════════════════════════════════════════════ */}
@@ -1023,6 +1173,45 @@ export default function AgentsManagementPage() {
         .spinner-ring{width:20px;height:20px;border:2px solid rgba(99,102,241,.2);border-top-color:#6366f1;border-radius:50%;animation:spin .8s linear infinite;flex-shrink:0;}
         .spinner-ring.small{width:14px;height:14px;}
         @keyframes spin{to{transform:rotate(360deg);}}
+
+        /* Live Map Tab Styles */
+        .live-map-section{display:flex;flex-direction:column;gap:18px;}
+        .live-map-header{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+        .live-map-actions{display:flex;align-items:center;gap:12px;}
+        .live-pulse-badge{display:flex;align-items:center;gap:6px;font-size:.72rem;font-weight:700;color:#10b981;background:rgba(16,185,129,.1);border:1px solid rgba(16,185,129,.25);padding:4px 10px;border-radius:9999px;letter-spacing:.04em;}
+        .pulse-dot{width:7px;height:7px;border-radius:50%;background:#10b981;box-shadow:0 0 8px #10b981;animation:pulseDot 1.5s infinite;}
+        @keyframes pulseDot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.8);}}
+        .live-map-container-grid{display:grid;grid-template-columns:1fr 340px;gap:18px;min-height:560px;}
+        .live-map-wrapper{border-radius:var(--radius-lg);overflow:hidden;border:1px solid rgba(255,255,255,.08);min-height:560px;position:relative;}
+        .agent-location-sidebar{display:flex;flex-direction:column;gap:12px;background:#0d1527;border:1px solid rgba(255,255,255,.08);border-radius:var(--radius-lg);padding:16px;max-height:640px;}
+        .sidebar-header{display:flex;flex-direction:column;gap:4px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.06);}
+        .sidebar-header h3{font-size:.9rem;font-weight:700;color:#fff;margin:0;display:flex;align-items:center;gap:8px;}
+        .sidebar-sub{font-size:.72rem;color:var(--color-text-muted);}
+        .agent-location-list{display:flex;flex-direction:column;gap:10px;overflow-y:auto;padding-right:4px;}
+        .agent-location-card{padding:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:var(--radius-md);cursor:pointer;transition:.18s ease;display:flex;flex-direction:column;gap:8px;}
+        .agent-location-card:hover{background:rgba(255,255,255,.06);border-color:rgba(99,102,241,.3);transform:translateY(-1px);}
+        .agent-location-card.selected{background:rgba(99,102,241,.12);border-color:#6366f1;box-shadow:0 0 16px rgba(99,102,241,.2);}
+        .agent-loc-card-header{display:flex;align-items:center;gap:10px;}
+        .agent-loc-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#4f46e5);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:.8rem;flex-shrink:0;}
+        .agent-loc-info{flex:1;min-width:0;}
+        .agent-loc-name-row{display:flex;align-items:center;justify-content:space-between;gap:6px;}
+        .agent-loc-name{font-size:.82rem;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+        .status-pill-small{font-size:.65rem;font-weight:700;padding:2px 6px;border-radius:4px;text-transform:uppercase;letter-spacing:.04em;}
+        .status-pill-small.online{background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3);}
+        .status-pill-small.in_meeting{background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);}
+        .status-pill-small.en_route{background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.3);}
+        .status-pill-small.offline{background:rgba(100,116,139,.15);color:#94a3b8;border:1px solid rgba(100,116,139,.3);}
+        .agent-loc-sub{font-size:.72rem;color:var(--color-text-muted);display:flex;align-items:center;gap:6px;margin-top:2px;}
+        .agent-loc-details{display:flex;flex-direction:column;gap:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.04);}
+        .loc-detail-row{display:flex;align-items:flex-start;gap:6px;font-size:.75rem;color:var(--color-text-secondary);line-height:1.3;}
+        .loc-icon{color:var(--color-brand-light);flex-shrink:0;margin-top:2px;}
+        .loc-text{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+        .loc-coords-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+        .coord-chip{font-family:var(--font-mono);font-size:.68rem;color:var(--color-text-muted);background:rgba(255,255,255,.04);padding:2px 6px;border-radius:4px;}
+        @media(max-width:960px){
+          .live-map-container-grid{grid-template-columns:1fr;}
+        }
+
         @media(max-width:900px){
           .schedule-layout{grid-template-columns:1fr;}
           .report-stats-grid{grid-template-columns:repeat(2,1fr);}
